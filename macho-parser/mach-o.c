@@ -68,7 +68,82 @@ void* macho_load_bytes(FILE *mach, uint32_t offset, uint32_t size){
     return buf;
 }
 
-void macho_parse_load_commands(FILE *mach, bool swap, uint32_t offset, uint32_t ncmds){
+void macho_print_symtab(FILE *mach,
+                        mach_header_t header,
+                        uint32_t headeroff,
+                        uint32_t symoff,
+                        uint32_t nsyms,
+                        uint32_t stroff,
+                        uint32_t strsize){
+    if(macho_64bit(header.magic)){
+        struct nlist_64 *symtab = macho_load_bytes(mach,symoff + headeroff,sizeof(struct nlist_64) * nsyms);
+        
+        char *strtab = macho_load_bytes(mach,stroff + headeroff,strsize);
+        for(int i=0; i<nsyms; i++){
+            struct nlist_64* nl = &symtab[i];
+            
+            if(nl->n_type & N_STAB) {
+                continue;
+            }
+            
+            const char* type = NULL;
+            switch(nl->n_type & N_TYPE) {
+                case N_UNDF: type = "N_UNDF"; break;
+                case N_ABS:  type = "N_ABS"; break;
+                case N_SECT: type = "N_SECT"; break;
+                case N_PBUD: type = "N_PBUD"; break;
+                case N_INDR: type = "N_INDR"; break;
+                    
+                default:
+                    printf("Invalid symbol type: 0x%x\n", nl->n_type & N_TYPE);
+                    free(symtab);
+                    free(strtab);
+                    return;
+            }
+            
+            const char* symname = &strtab[nl->n_un.n_strx];
+            printf("\t\tSymbol \"%s\" type: %s value: 0x%llx\n", symname, type, nl->n_value);
+        }
+        free(symtab);
+        free(strtab);
+    } else {
+        struct nlist *symtab = macho_load_bytes(mach,symoff + headeroff,sizeof(struct nlist) * nsyms);
+        char *strtab = macho_load_bytes(mach,stroff + headeroff,strsize);
+        for(int i=0; i<nsyms; i++){
+            struct nlist* nl = &symtab[i];
+            
+            if(nl->n_type & N_STAB) {
+                continue;
+            }
+            
+            uint32_t value = nl->n_value;
+            if((nl->n_type & N_TYPE) == N_SECT && nl->n_desc == N_ARM_THUMB_DEF) {
+                value |= 1;
+            }
+            
+            const char* type = NULL;
+            switch(nl->n_type & N_TYPE) {
+                case N_UNDF: type = "N_UNDF"; break;
+                case N_ABS:  type = "N_ABS"; break;
+                case N_SECT: type = "N_SECT"; break;
+                case N_PBUD: type = "N_PBUD"; break;
+                case N_INDR: type = "N_INDR"; break;
+                default:
+                    printf("Invalid symbol type: 0x%x\n", nl->n_type & N_TYPE);
+                    free(symtab);
+                    free(strtab);
+                    return;
+            }
+            
+            const char* symname = &strtab[nl->n_un.n_strx];
+            printf("\t\tSymbol \"%s\" type: %s value: 0x%x\n", symname, type, value);
+        }
+        free(symtab);
+        free(strtab);
+    }
+}
+
+void macho_parse_load_commands(FILE *mach, mach_header_t header, uint32_t headeroff, bool swap, uint32_t offset, uint32_t ncmds){
     
     for(int i=0; i<ncmds; i++){
         struct load_command *load_cmd = (struct load_command*)macho_load_bytes(mach,offset,sizeof(struct load_command));
@@ -88,7 +163,7 @@ void macho_parse_load_commands(FILE *mach, bool swap, uint32_t offset, uint32_t 
                 
                 for(int j=1; j<=nsects; j++){
                     struct section *section = (struct section*)macho_load_bytes(mach,sect_offset,sizeof(struct section));
-                    printf("Section %d - %s\n",j,section->sectname);
+                    printf("\tSection %d - %s\n",j,section->sectname);
                     sect_offset += sizeof(struct section);
                     free(section);
                 }
@@ -112,16 +187,35 @@ void macho_parse_load_commands(FILE *mach, bool swap, uint32_t offset, uint32_t 
                 break;
             case LC_LOAD_DYLIB:
                 ;
-                struct dylib_command *dylib_command = (struct dylib_command*)macho_load_bytes(mach,offset,sizeof(dylib_command));
+                struct dylib_command *dylib_command = (struct dylib_command*)macho_load_bytes(mach,offset,sizeof(struct dylib_command));
                 swap(dylib_command,dylib_command,swap);
                 struct dylib dylib = dylib_command->dylib;
-                uint32_t dylib_name_offset = offset + sizeof(struct dylib_command) + dylib.name.offset;
+                uint32_t dylib_name_offset = offset + dylib.name.offset;
                 uint32_t name_len = cmdsize - sizeof(dylib_command);
                 char *name = macho_load_bytes(mach,dylib_name_offset,name_len);
                 printf("LC_LOAD_DYLIB - %s\n",name);
                 printf("\tVers - %u Timestamp - %u\n",dylib.current_version,dylib.timestamp);
                 
                 free(dylib_command);
+                break;
+            case LC_SYMTAB:
+                ;
+                struct symtab_command *symtab_command = (struct symtab_command*)macho_load_bytes(mach,offset,sizeof(struct symtab_command));
+                swap(symtab_command,symtab_command,swap);
+                printf("LC_SYMTAB\n");
+                printf("\tSymbol Table is at offset 0x%x (%u) with %u entries \n",symtab_command->symoff,symtab_command->symoff,symtab_command->nsyms);
+                printf("\tString Table is at offset 0x%x (%u) with size of %u bytes\n",symtab_command->stroff,symtab_command->stroff,symtab_command->strsize);
+                
+                macho_print_symtab(mach,
+                                   header,
+                                   headeroff,
+                                   symtab_command->symoff,
+                                   symtab_command->nsyms,
+                                   symtab_command->stroff,
+                                   symtab_command->strsize);
+                free(symtab_command);
+                break;
+                
             default:
                 break;
         }
@@ -161,7 +255,7 @@ void macho_parse_header(FILE *mach, bool swap, uint32_t offset){
     }
     
     int size_header = macho_64bit(magic) ? sizeof(struct mach_header_64) : sizeof(struct mach_header);
-    macho_parse_load_commands(mach, swap, offset + size_header, header.ncmds);
+    macho_parse_load_commands(mach, header, offset, swap, offset + size_header, header.ncmds);
 }
 
 void macho_parse_fat_header(FILE *mach, bool swap, uint32_t offset){

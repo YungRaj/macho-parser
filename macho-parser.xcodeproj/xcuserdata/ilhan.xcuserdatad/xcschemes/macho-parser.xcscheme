@@ -63,7 +63,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "/usr/bin/zprint"
+            argument = "/sbin/launchd"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
