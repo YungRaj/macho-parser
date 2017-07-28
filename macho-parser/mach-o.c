@@ -24,8 +24,16 @@ bool macho_fat(uint32_t magic){
     return magic == FAT_CIGAM || magic == FAT_MAGIC;
 }
 
+bool macho_32bit(uint32_t magic){
+    return magic == MH_MAGIC || magic == MH_CIGAM;
+}
+
 bool macho_64bit(uint32_t magic){
     return magic == MH_MAGIC_64 || magic == MH_CIGAM_64;
+}
+
+bool macho_valid(uint32_t magic){
+    return macho_fat(magic) || macho_32bit(magic) || macho_64bit(magic);
 }
 
 bool macho_swapped(uint32_t magic){
@@ -132,8 +140,11 @@ void macho_parse_header(FILE *mach, bool swap, uint32_t offset){
     
     if(macho_64bit(magic)){
         printf("Mach-O image is 64 bit\n");
-    } else {
+    } else if(macho_valid(magic)) {
         printf("Mach-O image is 32 bit\n");
+    } else {
+        printf("Invalid Mach-O Magic, exiting...\n");
+        return;
     }
     
     mach_header_t header = macho_get_header(mach,offset);
