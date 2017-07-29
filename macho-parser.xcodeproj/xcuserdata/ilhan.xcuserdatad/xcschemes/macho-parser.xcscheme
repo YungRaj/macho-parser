@@ -63,7 +63,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "/sbin/launchd"
+            argument = "/sbin/dynamic_pager"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

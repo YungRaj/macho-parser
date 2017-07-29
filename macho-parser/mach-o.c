@@ -144,7 +144,6 @@ void macho_print_symtab(FILE *mach,
 }
 
 void macho_parse_load_commands(FILE *mach, mach_header_t header, uint32_t headeroff, bool swap, uint32_t offset, uint32_t ncmds){
-    
     for(int i=0; i<ncmds; i++){
         struct load_command *load_cmd = (struct load_command*)macho_load_bytes(mach,offset,sizeof(struct load_command));
         swap(load_command, load_cmd, swap);
@@ -163,7 +162,10 @@ void macho_parse_load_commands(FILE *mach, mach_header_t header, uint32_t header
                 
                 for(int j=1; j<=nsects; j++){
                     struct section *section = (struct section*)macho_load_bytes(mach,sect_offset,sizeof(struct section));
-                    printf("\tSection %d - %s\n",j,section->sectname);
+                    printf("\tSection %d: 0x%08x to 0x%08x - %s\n",j,
+                                                               section->addr,
+                                                               section->addr + section->size,
+                                                               section->sectname);
                     sect_offset += sizeof(struct section);
                     free(section);
                 }
@@ -179,7 +181,10 @@ void macho_parse_load_commands(FILE *mach, mach_header_t header, uint32_t header
                 
                 for(int j=1; j<=nsects; j++){
                     struct section_64 *section = (struct section_64*)macho_load_bytes(mach,sect_offset,sizeof(struct section_64));
-                    printf("\tSection %d - %s\n",j,section->sectname);
+                    printf("\tSection %d: 0x%08llx to 0x%08llx - %s\n",j,
+                                                               section->addr,
+                                                               section->addr + section->size,
+                                                               section->sectname);
                     sect_offset += sizeof(struct section_64);
                     free(section);
                 }
@@ -215,6 +220,15 @@ void macho_parse_load_commands(FILE *mach, mach_header_t header, uint32_t header
                                    symtab_command->strsize);
                 free(symtab_command);
                 break;
+            case LC_DYSYMTAB:
+                ;
+                struct dysymtab_command *dysymtab_command = (struct dysymtab_command*)macho_load_bytes(mach,offset,sizeof(struct dysymtab_command));
+                swap(dysymtab_command,dysymtab_command,swap);
+                printf("LC_DYSYMTAB\n");
+                printf("\t%u local symbols at index %u\n",dysymtab_command->ilocalsym,dysymtab_command->nlocalsym);
+                printf("\t%u external symbols at index %u\n",dysymtab_command->nextdefsym,dysymtab_command->iextdefsym);
+                printf("\t%u undefined symbols at index %u\n",dysymtab_command->nundefsym,dysymtab_command->iundefsym);
+                printf("\t%u Indirect symbols at offset 0x%x\n",dysymtab_command->nindirectsyms,dysymtab_command->indirectsymoff);
                 
             default:
                 break;
