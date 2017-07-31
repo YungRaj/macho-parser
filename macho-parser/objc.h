@@ -2,9 +2,10 @@
 #define __objc_h
 
 struct _objc_ivar {
+    uint64_t offset;
     char *name;
     char *type;
-    uint64_t offset;
+    uint8_t size;
 };
 
 enum _objc_method_type {
@@ -134,7 +135,7 @@ struct _objc_2_class_data {
 };
 
 struct _objc_2_class {
-    struct _objc_2_class *isa;
+    uint64_t isa;
     uint64_t superCls;
     uint64_t cache;
     uint64_t vTable;

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include "parser.h"
 #include "mach-o.h"
@@ -21,17 +22,82 @@ char* macho_read_string(uint64_t offset){
     return macho_load_bytes((uint32_t)offset,sizeof(char) * (uint32_t)size);
 }
 
-void macho_parse_objc_methods(mach_vm_address_t diff, uint64_t offset, uint64_t n){
+void macho_parse_objc_methods(mach_vm_address_t diff, uint64_t offset, uint64_t n, bool metaclass){
     uint64_t off = offset + sizeof(struct _objc_2_class_method_info);
     
-   for(int i=0; i<n; i++){
-       struct _objc_method *method = macho_load_bytes((uint32_t)off,sizeof(struct _objc_method));
-       char *methodname = macho_read_string((uint64_t)method->name - diff);
-       printf("\t\t\t0x%08llx: %s\n",method->offset,methodname);
-       
-       free(method);
-       off += sizeof(struct _objc_method);
+    printf("\t\t\tMethods\n");
+    
+    for(int i=0; i<n; i++){
+        struct _objc_method *method = macho_load_bytes((uint32_t)off,sizeof(struct _objc_method));
+        char *methodname = macho_read_string((uint64_t)method->name - diff);
+        
+        if(metaclass)
+            printf("\t\t\t\t0x%08llx: +%s\n",method->offset,methodname);
+        else
+            printf("\t\t\t\t0x%08llx: -%s\n",method->offset,methodname);
+        
+        free(method);
+        free(methodname);
+        off += sizeof(struct _objc_method);
     }
+}
+
+void macho_parse_objc_ivars(mach_vm_address_t diff, uint64_t offset, uint64_t n){
+    uint64_t off = offset + sizeof(struct _objc_2_class_ivar_info);
+    
+    printf("\t\t\tIvars\n");
+    
+    for(int i=0; i<n; i++){
+        struct _objc_ivar *ivar = macho_load_bytes((uint32_t)off,sizeof(struct _objc_2_class_ivar));
+        char *ivarname = macho_read_string((uint64_t)ivar->name - diff);
+        
+        printf("\t\t\t\t0x%08llx: %s\n",ivar->offset,ivarname);
+        
+        free(ivar);
+        free(ivarname);
+        off += sizeof(struct _objc_ivar);
+    }
+}
+
+void macho_parse_objc_class(mach_vm_address_t diff, struct _objc_2_class *class, bool metaclass){
+    uint64_t dataptr = (uint64_t)class->data;
+    uint64_t dataoff = dataptr - diff;
+    
+    struct _objc_2_class_data *data = (struct _objc_2_class_data*)macho_load_bytes((uint32_t)dataoff,sizeof(struct _objc_2_class_data));
+    
+    char *name = macho_read_string(data->name - diff);
+    
+    if(metaclass)
+        printf("\t\t$OBJC_METACLASS_%s\n",name);
+    else
+        printf("\t\t$OBJC_CLASS_%s\n",name);
+    
+    uint64_t ivarinfoptr = data->ivars;
+    
+    if(ivarinfoptr){
+        uint64_t ivarinfooff = ivarinfoptr - diff;
+        struct _objc_2_class_ivar_info *ivar_info = (struct _objc_2_class_ivar_info*)macho_load_bytes((uint32_t)ivarinfooff,sizeof(struct _objc_2_class_ivar_info));
+        uint64_t ivarcount = ivar_info->count;
+        
+        macho_parse_objc_ivars(diff,ivarinfooff,ivarcount);
+        
+        free(ivar_info);
+    }
+    
+    uint64_t methodinfoptr = data->methods;
+    
+    if(methodinfoptr){
+        uint64_t methodinfooff = methodinfoptr - diff;
+        struct _objc_2_class_method_info *method_info = (struct _objc_2_class_method_info*)macho_load_bytes((uint32_t)methodinfooff,sizeof(struct _objc_2_class_method_info));
+        
+        uint64_t methodcount = method_info->count;
+        
+        macho_parse_objc_methods(diff,methodinfooff,methodcount,metaclass);
+        free(method_info);
+    }
+    
+    free(data);
+    free(name);
 }
 
                            
@@ -48,31 +114,16 @@ void macho_parse_objc_64(mach_vm_address_t addr, uint64_t offset, uint64_t size)
         
         struct _objc_2_class *class = (struct _objc_2_class*)macho_load_bytes((uint32_t)classoff,sizeof(struct _objc_2_class));
         
-        uint64_t dataptr = (uint64_t)class->data;
-        uint64_t dataoff = dataptr - diff;
+        macho_parse_objc_class(diff,class,false);
         
-        struct _objc_2_class_data *data = (struct _objc_2_class_data*)macho_load_bytes((uint32_t)dataoff,sizeof(struct _objc_2_class_data));
+        uint64_t metaclassptr = class->isa;
+        uint64_t metaclassoff = metaclassptr - diff;
+        struct _objc_2_class *metaclass = (struct _obj_2_class*)macho_load_bytes((uint32_t)metaclassoff,sizeof(struct _objc_2_class));
         
-        char *name = macho_read_string(data->name - diff);
-        printf("\t\t$OBJC_CLASS_%s\n",name);
-        
-        uint64_t methodinfoptr = data->methods;
-        
-        if(methodinfoptr){
-            uint64_t methodinfooff = methodinfoptr - diff;
-            struct _objc_2_class_method_info *method_info = (struct _objc_2_class_method_info*)macho_load_bytes((uint32_t)methodinfooff,sizeof(struct _objc_2_class_method_info));
-            
-            uint64_t methodcount = method_info->count;
-            uint64_t entrysize = method_info->entrySize;
-            
-            macho_parse_objc_methods(diff,methodinfooff,methodcount);
-            free(method_info);
-        }
+        macho_parse_objc_class(diff,metaclass,true);
         
         
         free(class);
-        free(data);
-        free(name);
         offset += sizeof(uint64_t);
     }
     

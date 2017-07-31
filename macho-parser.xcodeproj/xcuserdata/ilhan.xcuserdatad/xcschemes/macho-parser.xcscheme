@@ -63,7 +63,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "/Users/ilhan/Downloads/Files/Code/Snapchat/Snapchat"
+            argument = "/Users/ilhan/Downloads/Files/Apps/iHex.app/Contents/MacOS/iHex"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
