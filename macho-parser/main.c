@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
-
 #include "mach-o.h"
 
 int main(int argc, const char * argv[]) {

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A53643041F2B0ECD0000EE2F /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = A53643031F2B0ECD0000EE2F /* main.c */; };
 		A536430C1F2B12140000EE2F /* mach-o.c in Sources */ = {isa = PBXBuildFile; fileRef = A536430B1F2B12140000EE2F /* mach-o.c */; };
+		A536430F1F2E9C200000EE2F /* objc.c in Sources */ = {isa = PBXBuildFile; fileRef = A536430D1F2E9C200000EE2F /* objc.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -28,6 +29,9 @@
 		A53643031F2B0ECD0000EE2F /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		A536430A1F2B0F940000EE2F /* mach-o.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "mach-o.h"; sourceTree = "<group>"; };
 		A536430B1F2B12140000EE2F /* mach-o.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "mach-o.c"; sourceTree = "<group>"; };
+		A536430D1F2E9C200000EE2F /* objc.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = objc.c; sourceTree = "<group>"; };
+		A536430E1F2E9C200000EE2F /* objc.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = objc.h; sourceTree = "<group>"; };
+		A53643101F2E9C4D0000EE2F /* parser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = parser.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -60,9 +64,12 @@
 		A53643021F2B0ECD0000EE2F /* macho-parser */ = {
 			isa = PBXGroup;
 			children = (
+				A536430D1F2E9C200000EE2F /* objc.c */,
+				A536430E1F2E9C200000EE2F /* objc.h */,
 				A53643031F2B0ECD0000EE2F /* main.c */,
 				A536430A1F2B0F940000EE2F /* mach-o.h */,
 				A536430B1F2B12140000EE2F /* mach-o.c */,
+				A53643101F2E9C4D0000EE2F /* parser.h */,
 			);
 			path = "macho-parser";
 			sourceTree = "<group>";
@@ -123,6 +130,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A536430F1F2E9C200000EE2F /* objc.c in Sources */,
 				A536430C1F2B12140000EE2F /* mach-o.c in Sources */,
 				A53643041F2B0ECD0000EE2F /* main.c in Sources */,
 			);
@@ -265,6 +273,7 @@
 				A53643091F2B0ECD0000EE2F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};

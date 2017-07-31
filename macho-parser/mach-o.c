@@ -1,19 +1,19 @@
-#include "mach-o.h"
 #include <mach-o/swap.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include "mach-o.h"
+#include "objc.h"
 
-#define swap(x,y,s) if(s) swap_ ## x(y,NXHostByteOrder())
-#define swapn(x,y,n,s) if(s) swap_ ## x(y,n,NXHostByteOrder())
+macho_file *gmacho_file = NULL;
 
 typedef struct fat_arch fat_arch_t;
 typedef struct fat_header fat_header_t;
 typedef struct mach_header mach_header_t;
 
-typedef struct{
-    char *buffer;
-    size_t size;
-} macho_file;
-
-uint32_t macho_get_magic(FILE *mach, uint32_t offset){
+uint32_t macho_get_magic(uint32_t offset){
+    FILE *mach = gmacho_file->file;
     uint32_t magic;
     fseek(mach, offset, SEEK_SET);
     fread(&magic, sizeof(uint32_t), 1, mach);
@@ -40,45 +40,50 @@ bool macho_swapped(uint32_t magic){
     return magic == MH_CIGAM || magic == MH_CIGAM_64 || magic == FAT_CIGAM;
 }
 
-fat_arch_t macho_get_fat_arch(FILE *mach, uint32_t offset){
+fat_arch_t macho_get_fat_arch(uint32_t offset){
+    FILE *mach = gmacho_file->file;
     fat_arch_t arch;
     fseek(mach, offset, SEEK_SET);
     fread(&arch, sizeof(fat_arch_t), 1, mach);
     return arch;
 }
 
-fat_header_t macho_get_fat_header(FILE *mach, uint32_t offset){
+fat_header_t macho_get_fat_header(uint32_t offset){
+    FILE *mach = gmacho_file->file;
     fat_header_t header;
     fseek(mach, offset, SEEK_SET);
     fread(&header, sizeof(fat_header_t), 1, mach);
     return header;
 }
 
-mach_header_t macho_get_header(FILE *mach, uint32_t offset){
+mach_header_t macho_get_header(uint32_t offset){
+    FILE *mach = gmacho_file->file;
     mach_header_t header;
     fseek(mach, offset, SEEK_SET);
     fread(&header, sizeof(mach_header_t), 1, mach);
     return header;
 }
 
-void* macho_load_bytes(FILE *mach, uint32_t offset, uint32_t size){
+void* macho_load_bytes(uint32_t offset, uint32_t size){
+    FILE *mach = gmacho_file->file;
     void *buf = calloc(1,size);
     fseek(mach, offset, SEEK_SET);
     fread(buf, size, 1, mach);
     return buf;
 }
 
-void macho_print_symtab(FILE *mach,
-                        mach_header_t header,
+
+
+void macho_print_symtab(mach_header_t header,
                         uint32_t headeroff,
                         uint32_t symoff,
                         uint32_t nsyms,
                         uint32_t stroff,
                         uint32_t strsize){
     if(macho_64bit(header.magic)){
-        struct nlist_64 *symtab = macho_load_bytes(mach,symoff + headeroff,sizeof(struct nlist_64) * nsyms);
+        struct nlist_64 *symtab = macho_load_bytes(symoff + headeroff,sizeof(struct nlist_64) * nsyms);
         
-        char *strtab = macho_load_bytes(mach,stroff + headeroff,strsize);
+        char *strtab = macho_load_bytes(stroff + headeroff,strsize);
         for(int i=0; i<nsyms; i++){
             struct nlist_64* nl = &symtab[i];
             
@@ -107,8 +112,8 @@ void macho_print_symtab(FILE *mach,
         free(symtab);
         free(strtab);
     } else {
-        struct nlist *symtab = macho_load_bytes(mach,symoff + headeroff,sizeof(struct nlist) * nsyms);
-        char *strtab = macho_load_bytes(mach,stroff + headeroff,strsize);
+        struct nlist *symtab = macho_load_bytes(symoff + headeroff,sizeof(struct nlist) * nsyms);
+        char *strtab = macho_load_bytes(stroff + headeroff,strsize);
         for(int i=0; i<nsyms; i++){
             struct nlist* nl = &symtab[i];
             
@@ -143,9 +148,9 @@ void macho_print_symtab(FILE *mach,
     }
 }
 
-void macho_parse_load_commands(FILE *mach, mach_header_t header, uint32_t headeroff, bool swap, uint32_t offset, uint32_t ncmds){
+void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool swap, uint32_t offset, uint32_t ncmds){
     for(int i=0; i<ncmds; i++){
-        struct load_command *load_cmd = (struct load_command*)macho_load_bytes(mach,offset,sizeof(struct load_command));
+        struct load_command *load_cmd = (struct load_command*)macho_load_bytes(offset,sizeof(struct load_command));
         swap(load_command, load_cmd, swap);
         
         uint32_t cmdtype = load_cmd->cmd;
@@ -154,18 +159,19 @@ void macho_parse_load_commands(FILE *mach, mach_header_t header, uint32_t header
         switch(cmdtype){
             case LC_SEGMENT:
                 ;
-                struct segment_command *segment_command = (struct segment_command*)macho_load_bytes(mach,offset,sizeof(struct segment_command));
+                struct segment_command *segment_command = (struct segment_command*)macho_load_bytes(offset,sizeof(struct segment_command));
                 swap(segment_command, segment_command, swap);
                 uint32_t nsects = segment_command->nsects;
                 uint32_t sect_offset = offset + sizeof(struct segment_command);
                 printf("LC_SEGMENT - %s\n",segment_command->segname);
                 
                 for(int j=1; j<=nsects; j++){
-                    struct section *section = (struct section*)macho_load_bytes(mach,sect_offset,sizeof(struct section));
+                    struct section *section = (struct section*)macho_load_bytes(sect_offset,sizeof(struct section));
                     printf("\tSection %d: 0x%08x to 0x%08x - %s\n",j,
-                                                               section->addr,
-                                                               section->addr + section->size,
-                                                               section->sectname);
+                                                                   section->addr,
+                                                                   section->addr + section->size,
+                                                                   section->sectname);
+                    
                     sect_offset += sizeof(struct section);
                     free(section);
                 }
@@ -173,18 +179,22 @@ void macho_parse_load_commands(FILE *mach, mach_header_t header, uint32_t header
                 break;
             case LC_SEGMENT_64:
                 ;
-                struct segment_command_64 *segment_command_64 = (struct segment_command_64*)macho_load_bytes(mach,offset,sizeof(struct segment_command_64));
+                struct segment_command_64 *segment_command_64 = (struct segment_command_64*)macho_load_bytes(offset,sizeof(struct segment_command_64));
                 swap(segment_command_64, segment_command_64, swap);
                 nsects = segment_command_64->nsects;
                 sect_offset = offset + sizeof(struct segment_command_64);
                 printf("LC_SEGMENT_64 - %s\n",segment_command_64->segname);
                 
                 for(int j=1; j<=nsects; j++){
-                    struct section_64 *section = (struct section_64*)macho_load_bytes(mach,sect_offset,sizeof(struct section_64));
+                    struct section_64 *section = (struct section_64*)macho_load_bytes(sect_offset,sizeof(struct section_64));
                     printf("\tSection %d: 0x%08llx to 0x%08llx - %s\n",j,
                                                                section->addr,
                                                                section->addr + section->size,
                                                                section->sectname);
+                    if(strstr("__objc_classlist__DATA",section->sectname)){
+                        macho_parse_objc_64(section->addr,section->offset,section->size);
+                    }
+                    
                     sect_offset += sizeof(struct section_64);
                     free(section);
                 }
@@ -192,12 +202,12 @@ void macho_parse_load_commands(FILE *mach, mach_header_t header, uint32_t header
                 break;
             case LC_LOAD_DYLIB:
                 ;
-                struct dylib_command *dylib_command = (struct dylib_command*)macho_load_bytes(mach,offset,sizeof(struct dylib_command));
+                struct dylib_command *dylib_command = (struct dylib_command*)macho_load_bytes(offset,sizeof(struct dylib_command));
                 swap(dylib_command,dylib_command,swap);
                 struct dylib dylib = dylib_command->dylib;
                 uint32_t dylib_name_offset = offset + dylib.name.offset;
                 uint32_t name_len = cmdsize - sizeof(dylib_command);
-                char *name = macho_load_bytes(mach,dylib_name_offset,name_len);
+                char *name = macho_load_bytes(dylib_name_offset,name_len);
                 printf("LC_LOAD_DYLIB - %s\n",name);
                 printf("\tVers - %u Timestamp - %u\n",dylib.current_version,dylib.timestamp);
                 
@@ -205,14 +215,13 @@ void macho_parse_load_commands(FILE *mach, mach_header_t header, uint32_t header
                 break;
             case LC_SYMTAB:
                 ;
-                struct symtab_command *symtab_command = (struct symtab_command*)macho_load_bytes(mach,offset,sizeof(struct symtab_command));
+                struct symtab_command *symtab_command = (struct symtab_command*)macho_load_bytes(offset,sizeof(struct symtab_command));
                 swap(symtab_command,symtab_command,swap);
                 printf("LC_SYMTAB\n");
                 printf("\tSymbol Table is at offset 0x%x (%u) with %u entries \n",symtab_command->symoff,symtab_command->symoff,symtab_command->nsyms);
                 printf("\tString Table is at offset 0x%x (%u) with size of %u bytes\n",symtab_command->stroff,symtab_command->stroff,symtab_command->strsize);
                 
-                macho_print_symtab(mach,
-                                   header,
+                macho_print_symtab(header,
                                    headeroff,
                                    symtab_command->symoff,
                                    symtab_command->nsyms,
@@ -222,7 +231,7 @@ void macho_parse_load_commands(FILE *mach, mach_header_t header, uint32_t header
                 break;
             case LC_DYSYMTAB:
                 ;
-                struct dysymtab_command *dysymtab_command = (struct dysymtab_command*)macho_load_bytes(mach,offset,sizeof(struct dysymtab_command));
+                struct dysymtab_command *dysymtab_command = (struct dysymtab_command*)macho_load_bytes(offset,sizeof(struct dysymtab_command));
                 swap(dysymtab_command,dysymtab_command,swap);
                 printf("LC_DYSYMTAB\n");
                 printf("\t%u local symbols at index %u\n",dysymtab_command->ilocalsym,dysymtab_command->nlocalsym);
@@ -230,6 +239,15 @@ void macho_parse_load_commands(FILE *mach, mach_header_t header, uint32_t header
                 printf("\t%u undefined symbols at index %u\n",dysymtab_command->nundefsym,dysymtab_command->iundefsym);
                 printf("\t%u Indirect symbols at offset 0x%x\n",dysymtab_command->nindirectsyms,dysymtab_command->indirectsymoff);
                 
+                free(dysymtab_command);
+                break;
+            case LC_MAIN:
+                ;
+                struct entry_point_command *entry_point_command = (struct entry_point_command*)macho_load_bytes(offset,sizeof(struct entry_point_command));
+                swap(entry_point_command,entry_point_command,swap);
+                printf("LC_MAIN\n");
+                printf("\tEntry point at offset 0x%llx\n",entry_point_command->entryoff);
+                break;
             default:
                 break;
         }
@@ -240,8 +258,8 @@ void macho_parse_load_commands(FILE *mach, mach_header_t header, uint32_t header
     }
 }
 
-void macho_parse_header(FILE *mach, bool swap, uint32_t offset){
-    uint32_t magic = macho_get_magic(mach,offset);
+void macho_parse_header(bool swap, uint32_t offset){
+    uint32_t magic = macho_get_magic(offset);
     swap = macho_swapped(magic);
     
     printf("MACH MAGIC - %x\n",magic);
@@ -255,7 +273,7 @@ void macho_parse_header(FILE *mach, bool swap, uint32_t offset){
         return;
     }
     
-    mach_header_t header = macho_get_header(mach,offset);
+    mach_header_t header = macho_get_header(offset);
     swap(mach_header,&header,swap);
     
     cpu_type_t cpu_type = header.cputype;
@@ -269,11 +287,11 @@ void macho_parse_header(FILE *mach, bool swap, uint32_t offset){
     }
     
     int size_header = macho_64bit(magic) ? sizeof(struct mach_header_64) : sizeof(struct mach_header);
-    macho_parse_load_commands(mach, header, offset, swap, offset + size_header, header.ncmds);
+    macho_parse_load_commands(header, offset, swap, offset + size_header, header.ncmds);
 }
 
-void macho_parse_fat_header(FILE *mach, bool swap, uint32_t offset){
-    fat_header_t header = macho_get_fat_header(mach,0);
+void macho_parse_fat_header(bool swap, uint32_t offset){
+    fat_header_t header = macho_get_fat_header(0);
     swap(fat_header,&header,swap);
     
     printf("FAT MAGIC %x\n",header.magic);
@@ -286,30 +304,34 @@ void macho_parse_fat_header(FILE *mach, bool swap, uint32_t offset){
         offset += sizeof(fat_arch_t)){
         printf("\nImage %d\n\n",(offset-sizeof(fat_header_t))/sizeof(fat_arch_t)+1);
         
-        fat_arch_t arch = macho_get_fat_arch(mach, offset);
+        fat_arch_t arch = macho_get_fat_arch(offset);
         swapn(fat_arch,&arch,1,swap);
         
         uint32_t arch_offset = arch.offset;
-        macho_parse_header(mach, swap, arch_offset);
+        macho_parse_header(swap, arch_offset);
     }
 }
 
 void macho_parse(FILE *mach, size_t size){
-    macho_file *file = malloc(sizeof(macho_file));
+    gmacho_file = malloc(sizeof(macho_file));
     char *buf = malloc(size);
+    fseek(mach,0,SEEK_SET);
     fread(buf,1,size,mach);
-    file->buffer = buf;
-    file->size = size;
+    gmacho_file->file = mach;
+    gmacho_file->buffer = buf;
+    gmacho_file->size = size;
     
-    uint32_t magic = macho_get_magic(mach,0);
+    
+    uint32_t magic = macho_get_magic(0);
     bool swap = macho_swapped(magic);
     
     if(macho_fat(magic)){
-        macho_parse_fat_header(mach, swap,0);
+        macho_parse_fat_header(swap,0);
     } else {
-        macho_parse_header(mach, swap,0);
+        macho_parse_header(swap,0);
     }
     
     free(buf);
-    free(file);
+    free(gmacho_file);
+    gmacho_file = NULL;
 }
