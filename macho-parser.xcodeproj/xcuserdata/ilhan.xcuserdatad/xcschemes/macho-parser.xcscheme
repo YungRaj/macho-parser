@@ -63,7 +63,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "/System/Library/Frameworks/SpriteKit.framework/SpriteKit"
+            argument = "/Users/ilhan/Downloads/Files/Code/Snapchat/Snapchat"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

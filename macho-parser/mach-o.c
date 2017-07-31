@@ -192,7 +192,7 @@ void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool sw
                                                                section->addr + section->size,
                                                                section->sectname);
                     if(strstr("__objc_classlist__DATA",section->sectname)){
-                        macho_parse_objc_64(section->addr,section->offset,section->size);
+                        macho_parse_objc_64(section->addr,headeroff + section->offset,section->size);
                     }
                     
                     sect_offset += sizeof(struct section_64);
