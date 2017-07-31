@@ -1,10 +1,58 @@
 #ifndef __objc_h
 #define __objc_h
 
-enum dyld_objc_2_class_type {
-    dyld_objc_2_class_invalid_type = 0,
-    dyld_objc_2_class_class_type,
-    dyld_objc_2_class_metaclass_type
+struct _objc_ivar {
+    char *name;
+    char *type;
+    uint64_t offset;
+};
+
+enum _objc_method_type {
+    _objc_method_invalid_type = 0,
+    _objc_method_instance_type,
+    _objc_method_class_type
+};
+
+struct _objc_method {
+    char *name;
+    char *type;
+    uint64_t offset;
+};
+
+struct _objc_protocol {
+    char *name;
+    uint64_t offset;
+    struct _objc_method *method;
+    uint32_t methodCount;
+};
+
+struct _objc_class {
+    struct _objc_class *superCls;
+    char *className;
+    struct _objc_ivar *ivar;
+    uint32_t ivarCount;
+    struct _objc_method *method;
+    uint32_t methodCount;
+    struct _objc_protocol *protocol;
+    uint32_t protocolCount;
+};
+
+struct _objc_module {
+    char *impName;
+    struct _objc_class *symbol;
+};
+
+struct _objc_module_raw {
+    uint32_t version;
+    uint32_t size;
+    uint32_t name;
+    uint32_t symtab;
+};
+
+enum _objc_2_class_type {
+    _objc_2_class_invalid_type = 0,
+    _objc_2_class_class_type,
+    _objc_2_class_metaclass_type
 };
 
 #define kObjc2SelRef     "__objc_selrefs"
@@ -18,32 +66,32 @@ enum dyld_objc_2_class_type {
 #define kObjc2ProtoList "__objc_protolist"
 #define kObjc2ProtoRefs "__objc_protorefs"
 
-struct dyld_objc_2_class_method_info {
+struct _objc_2_class_method_info {
     uint32_t entrySize;
     uint32_t count;
 };
 
-struct dyld_objc_2_class_protocol_info {
+struct _objc_2_class_protocol_info {
     uint64_t count;
 };
 
-struct dyld_objc_2_class_ivar_info {
+struct _objc_2_class_ivar_info {
     uint32_t entrySize;
     uint32_t count;
 };
 
-struct dyld_objc_2_class_property_info {
+struct _objc_2_class_property_info {
     uint32_t entrySize;
     uint32_t count;
 };
 
-struct dyld_objc_2_class_method {
+struct _objc_2_class_method {
     uint64_t name;
     uint64_t type;
     uint64_t imp;
 };
 
-struct dyld_objc_2_class_protocol {
+struct _objc_2_class_protocol {
     uint64_t isa;
     uint64_t name;
     uint64_t protocols;
@@ -54,7 +102,7 @@ struct dyld_objc_2_class_protocol {
     uint64_t instance_properties;
 };
 
-struct dyld_objc_2_class_ivar {
+struct _objc_2_class_ivar {
     uint64_t offset;
     uint64_t name;
     uint64_t type;
@@ -62,31 +110,35 @@ struct dyld_objc_2_class_ivar {
     uint32_t size;
 };
 
-struct dyld_objc_2_class_property {
+struct _objc_2_class_property {
     char *name;
     char *attributes;
 };
 
-struct dyld_objc_2_class_data {
+struct _objc_2_class_data {
     uint32_t flags;
     uint32_t instanceStart;
     uint32_t instanceSize;
     uint32_t reserved;
     uint64_t iVarLayout;
-    uint64_t name; //char*
-    uint64_t method; //struct dyld_objc_2_class_method_info*
-    uint64_t protocol; //struct dyld_objc_2_class_protocol_info*
-    uint64_t ivar; //struct dyld_objc_2_class_ivar_info*
+    uint64_t name;
+    //char*
+    uint64_t methods;
+    //struct _objc_2_class_method_info*
+    uint64_t protocols;
+    //struct _objc_2_class_protocol_info*
+    uint64_t ivars;
+    //struct _objc_2_class_ivar_info*
     uint64_t weakIVarLayout;
-    uint64_t property; //struct dyld_objc_2_class_property*
+    uint64_t property; //struct _objc_2_class_property*
 };
 
-struct dyld_objc_2_class {
-    struct dyld_objc_2_class *isa;
+struct _objc_2_class {
+    struct _objc_2_class *isa;
     uint64_t superCls;
     uint64_t cache;
     uint64_t vTable;
-    struct dyld_objc_2_class_data *data;
+    struct _objc_2_class_data *data;
 };
 
 #endif
