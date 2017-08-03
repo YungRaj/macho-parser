@@ -131,7 +131,7 @@ struct _objc_2_class_data {
     uint64_t ivars;
     //struct _objc_2_class_ivar_info*
     uint64_t weakIVarLayout;
-    uint64_t property; //struct _objc_2_class_property*
+    uint64_t properties; //struct _objc_2_class_property*
 };
 
 struct _objc_2_class {

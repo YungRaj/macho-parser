@@ -42,6 +42,25 @@ void macho_parse_objc_methods(mach_vm_address_t diff, uint64_t offset, uint64_t 
     }
 }
 
+void macho_parse_objc_properties(mach_vm_address_t diff, uint64_t offset, uint64_t n){
+    uint64_t off = offset + sizeof(struct _objc_2_class_property_info);
+    
+    printf("\t\t\tProperties\n");
+    
+    for(int i=0; i<n; i++){
+        struct _objc_2_class_property *property = macho_load_bytes((uint32_t)off,sizeof(struct _objc_2_class_property));
+        char *propertyname = macho_read_string((uint64_t)property->name - diff);
+        char *attributes = macho_read_string((uint64_t)property->attributes - diff);
+        
+        printf("\t\t\t\t%s %s\n",attributes,propertyname);
+        
+        free(property);
+        free(propertyname);
+        free(attributes);
+        off += sizeof(struct _objc_2_class_property);
+    }
+}
+
 void macho_parse_objc_ivars(mach_vm_address_t diff, uint64_t offset, uint64_t n){
     uint64_t off = offset + sizeof(struct _objc_2_class_ivar_info);
     
@@ -82,6 +101,18 @@ void macho_parse_objc_class(mach_vm_address_t diff, struct _objc_2_class *class,
         macho_parse_objc_ivars(diff,ivarinfooff,ivarcount);
         
         free(ivar_info);
+    }
+    
+    uint64_t propertyinfoptr = data->properties;
+    
+    if(propertyinfoptr){
+        uint64_t propertyinfooff = propertyinfoptr - diff;
+        struct _objc_2_class_property_info *property_info = (struct _objc_2_class_property_info*)macho_load_bytes((uint32_t)propertyinfooff,sizeof(struct _objc_2_class_property_info));
+        uint64_t propertycount = property_info->count;
+        
+        macho_parse_objc_properties(diff,propertyinfooff,propertycount);
+        
+        free(property_info);
     }
     
     uint64_t methodinfoptr = data->methods;
