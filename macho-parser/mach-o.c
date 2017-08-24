@@ -244,7 +244,9 @@ void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool sw
                 swap(segment_command, segment_command, swap);
                 uint32_t nsects = segment_command->nsects;
                 uint32_t sect_offset = offset + sizeof(struct segment_command);
-                printf("LC_SEGMENT - %s\n",segment_command->segname);
+                printf("LC_SEGMENT - %s 0x%08x to 0x%08x \n",segment_command->segname,
+                                                             segment_command->vmaddr,
+                                                             segment_command->vmaddr + segment_command->vmsize);
                 
                 for(int j=1; j<=nsects; j++){
                     struct section *section = (struct section*)macho_load_bytes(sect_offset,sizeof(struct section));
@@ -264,7 +266,9 @@ void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool sw
                 swap(segment_command_64, segment_command_64, swap);
                 nsects = segment_command_64->nsects;
                 sect_offset = offset + sizeof(struct segment_command_64);
-                printf("LC_SEGMENT_64 - %s\n",segment_command_64->segname);
+                printf("LC_SEGMENT_64 - %s 0x%08llx to 0x%08llx \n",segment_command_64->segname,
+                                                                segment_command_64->vmaddr,
+                                                                segment_command_64->vmaddr + segment_command_64->vmsize);
                 
                 for(int j=1; j<=nsects; j++){
                     struct section_64 *section = (struct section_64*)macho_load_bytes(sect_offset,sizeof(struct section_64));
