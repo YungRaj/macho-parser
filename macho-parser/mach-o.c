@@ -148,7 +148,6 @@ void macho_print_symtab(mach_header_t header,
     }
 }
 
-#define CSSLOT_CODEDIRECTORY 0
 
 void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool swap, uint32_t offset, uint32_t size){
     SuperBlob *superblob = (SuperBlob*)macho_load_bytes(headeroff + offset,size);
@@ -187,6 +186,21 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                     free(hash);
                     printf("\n");
                 }
+                break;
+            case CSSLOT_INFOSLOT:
+                ;
+                break;
+            case CSSLOT_REQUIREMENTS:
+                ;
+                break;
+            case CSSLOT_RESOURCEDIR:
+                ;
+                break;
+            case CSSLOT_APPLICATION:
+                ;
+                break;
+            case CSSLOT_ENTITLEMENTS:
+                ;
                 break;
         }
     }
