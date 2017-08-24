@@ -63,7 +63,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "/Users/ilhan/Downloads/Files/Apps/iHex.app/Contents/MacOS/iHex"
+            argument = "/Applications/Calculator.app/Contents/MacOS/Calculator"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

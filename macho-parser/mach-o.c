@@ -148,6 +148,51 @@ void macho_print_symtab(mach_header_t header,
     }
 }
 
+#define CSSLOT_CODEDIRECTORY 0
+
+void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool swap, uint32_t offset, uint32_t size){
+    SuperBlob *superblob = (SuperBlob*)macho_load_bytes(headeroff + offset,size);
+    uint32_t blobcount = swap32(superblob->count);
+    
+    for(int blob = 0; blob < blobcount; blob++){
+        BlobIndex index = superblob->index[blob];
+        uint32_t blobtype = swap32(index.type);
+        uint32_t bloboffset = swap32(index.offset);
+        switch(blobtype){
+            case CSSLOT_CODEDIRECTORY:
+                ;
+                uint32_t begin = headeroff + offset + bloboffset;
+                code_directory_t directory = macho_load_bytes(begin, sizeof(struct code_directory));
+                uint32_t magic = swap32(directory->blob.magic);
+                uint32_t length = swap32(directory->blob.length);
+                uint32_t hashOffset = swap32(directory->hashOffset);
+                uint32_t identOffset = swap32(directory->identOffset);
+                uint32_t nSpecialSlots = swap32(directory->nSpecialSlots);
+                uint32_t nCodeSlots = swap32(directory->nCodeSlots);
+                uint32_t hashSize = directory->hashSize;
+                uint32_t hashType = directory->hashType;
+                uint32_t pageSize = directory->pageSize;
+                
+                for(int i = 0; i < nCodeSlots; i++){
+                    uint32_t pages = nCodeSlots;
+                    
+                    if(pages){
+                        printf("\tPage %u at offset %.2x ",i,begin + hashOffset + i * hashSize);
+                    }
+                    uint8_t *hash = macho_load_bytes(begin + hashOffset + i * hashSize, hashSize);
+                    
+                    for(int j = 0; j < hashSize; j++){
+                        printf("%.2x",hash[j]);
+                    }
+                    free(hash);
+                    printf("\n");
+                }
+                break;
+        }
+    }
+    free(superblob);
+}
+
 void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool swap, uint32_t offset, uint32_t ncmds){
     for(int i=0; i<ncmds; i++){
         struct load_command *load_cmd = (struct load_command*)macho_load_bytes(offset,sizeof(struct load_command));
@@ -247,6 +292,18 @@ void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool sw
                 swap(entry_point_command,entry_point_command,swap);
                 printf("LC_MAIN\n");
                 printf("\tEntry point at offset 0x%llx\n",entry_point_command->entryoff);
+                free(entry_point_command);
+                break;
+                
+            case LC_CODE_SIGNATURE:
+                ;
+                struct linkedit_data_command *linkedit = (struct linkedit_data_command*)macho_load_bytes(offset,sizeof(struct linkedit_data_command));
+                swap(linkedit_data_command,linkedit,swap);
+                uint32_t dataoff = linkedit->dataoff;
+                uint32_t datasize = linkedit->datasize;
+                free(linkedit);
+                printf("LC_CODE_SIGNATURE\n");
+                macho_parse_code_directory(header, headeroff, swap, dataoff, datasize);
                 break;
             default:
                 break;

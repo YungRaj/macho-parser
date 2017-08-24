@@ -24,6 +24,45 @@ static struct cpu_type_names cpu_type_names[] = {
     {CPU_TYPE_ARM64,    "arm64"}
 };
 
+#define CSMAGIC_EMBEDDED_SIGNATURE 0xfade0cc0
+#define CSMAGIC_CODEDIRECTORY 0xfade0c02
+#define CSMAGIC_REQUIREMENTS 0xfade0c01
+#define CSMAGIC_BLOBWRAPPER 0xfade0b01
+
+typedef struct{
+    uint32_t type;
+    uint32_t offset;
+} BlobIndex ;
+
+typedef struct Blob {
+    uint32_t magic;
+    uint32_t length;
+} Blob;
+
+typedef struct {
+    Blob blob;
+    uint32_t count;
+    BlobIndex index[];
+} SuperBlob;
+
+typedef struct code_directory {
+    struct Blob blob;
+    uint32_t version;       /* compatibility version */
+    uint32_t flags;         /* setup and mode flags */
+    uint32_t hashOffset;      /* offset of hash slot element at index zero */
+    uint32_t identOffset;     /* offset of identifier string */
+    uint32_t nSpecialSlots;     /* number of special hash slots */
+    uint32_t nCodeSlots;      /* number of ordinary (code) hash slots */
+    uint32_t codeLimit;       /* limit to main image signature range */
+    uint8_t hashSize;       /* size of each hash in bytes */
+    uint8_t hashType;       /* type of hash (cdHashType* constants) */
+    uint8_t spare1;         /* unused (must be zero) */
+    uint8_t pageSize;       /* log2(page size in bytes); 0 => infinite */
+    uint32_t spare2;        /* unused (must be zero) */
+    /* Version 0x20100 */
+    uint32_t scatterOffset;       /* offset of optional scatter vector */
+    /* followed by dynamic content as located by offset fields above */
+} *code_directory_t;
 
 
 

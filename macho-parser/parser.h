@@ -2,6 +2,7 @@
 #ifndef __parser_h
 #define __parser_h
 
+#define swap32(x) OSSwapInt32(x)
 #define swap(x,y,s) if(s) swap_ ## x(y,NXHostByteOrder())
 #define swapn(x,y,n,s) if(s) swap_ ## x(y,n,NXHostByteOrder())
 
