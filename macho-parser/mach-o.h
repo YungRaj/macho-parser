@@ -42,6 +42,9 @@ static struct cpu_type_names cpu_type_names[] = {
 
 #define CSSLOT_SIGNATURESLOT 0x10000
 
+#define HASH_TYPE_SHA1 0x01
+#define HASH_TYPE_SHA256 0x02
+
 typedef struct{
     uint32_t type;
     uint32_t offset;

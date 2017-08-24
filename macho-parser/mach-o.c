@@ -172,11 +172,19 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                 uint32_t hashType = directory->hashType;
                 uint32_t pageSize = directory->pageSize;
                 
+                if(hashType == HASH_TYPE_SHA1){
+                    printf("CD signatures are signed with SHA1\n");
+                } else if(hashType == HASH_TYPE_SHA256){
+                    printf("CD signatures are signed with SHA256\n");
+                } else {
+                    printf("Unknown hashing algorithm in pages\n");
+                }
+                
                 for(int i = 0; i < nCodeSlots; i++){
                     uint32_t pages = nCodeSlots;
                     
                     if(pages){
-                        printf("\tPage %u at offset %.2x ",i,begin + hashOffset + i * hashSize);
+                        printf("\tPage %u ",i);
                     }
                     uint8_t *hash = macho_load_bytes(begin + hashOffset + i * hashSize, hashSize);
                     
@@ -200,6 +208,20 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                 ;
                 break;
             case CSSLOT_ENTITLEMENTS:
+                ;
+                begin = headeroff + offset + bloboffset;
+                struct Blob *blob = macho_load_bytes(begin, sizeof(Blob));
+                magic = swap32(blob->magic);
+                length = swap32(blob->length);
+                
+                char *entitlements = macho_load_bytes(begin + sizeof(struct Blob), length);
+                
+                printf("\n\tEntitlements\n");
+                printf("%s\n",entitlements);
+                
+                free(entitlements);
+                break;
+            default:
                 ;
                 break;
         }
