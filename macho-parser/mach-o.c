@@ -214,7 +214,7 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                 magic = swap32(blob->magic);
                 length = swap32(blob->length);
                 
-                char *entitlements = macho_load_bytes(begin + sizeof(struct Blob), length);
+                char *entitlements = macho_load_bytes(begin + sizeof(struct Blob), length - sizeof(struct Blob));
                 
                 printf("\n\tEntitlements\n");
                 printf("%s\n",entitlements);
