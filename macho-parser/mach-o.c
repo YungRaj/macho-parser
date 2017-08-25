@@ -148,6 +148,12 @@ void macho_print_symtab(mach_header_t header,
     }
 }
 
+static const char *specialSlots[5] = {"Entitlements.plist",
+                                      "Application Specific",
+                                      "Resource Directory",
+                                      "Requirements Blob",
+                                      "Bound Info.plist"};
+
 
 void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool swap, uint32_t offset, uint32_t size){
     SuperBlob *superblob = (SuperBlob*)macho_load_bytes(headeroff + offset,size);
@@ -194,9 +200,23 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                     free(hash);
                     printf("\n");
                 }
-                break;
-            case CSSLOT_INFOSLOT:
-                ;
+                
+                begin = headeroff + offset + bloboffset - hashSize * nSpecialSlots;
+                
+                printf("\nSpecial Slots\n");
+                
+                for(int i = 0; i < nSpecialSlots; i++){
+                    if(i<5)
+                        printf("\t%s ",specialSlots[i]);
+                    
+                    uint8_t *hash = macho_load_bytes(begin + hashOffset + i * hashSize, hashSize);
+                    
+                    for(int j = 0; j < hashSize; j++){
+                        printf("%.2x",hash[j]);
+                    }
+                    free(hash);
+                    printf("\n");
+                }
                 break;
             case CSSLOT_REQUIREMENTS:
                 ;
@@ -216,7 +236,7 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                 
                 char *entitlements = macho_load_bytes(begin + sizeof(struct Blob), length - sizeof(struct Blob));
                 
-                printf("\n\tEntitlements\n");
+                printf("\nEntitlements\n");
                 printf("%s\n",entitlements);
                 
                 free(entitlements);
