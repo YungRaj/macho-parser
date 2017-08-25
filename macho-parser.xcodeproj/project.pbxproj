@@ -10,6 +10,7 @@
 		A53643041F2B0ECD0000EE2F /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = A53643031F2B0ECD0000EE2F /* main.c */; };
 		A536430C1F2B12140000EE2F /* mach-o.c in Sources */ = {isa = PBXBuildFile; fileRef = A536430B1F2B12140000EE2F /* mach-o.c */; };
 		A536430F1F2E9C200000EE2F /* objc.c in Sources */ = {isa = PBXBuildFile; fileRef = A536430D1F2E9C200000EE2F /* objc.c */; };
+		A5B763A61F50DD2400F74519 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = A5B763A51F50DD2400F74519 /* parser.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -32,6 +33,7 @@
 		A536430D1F2E9C200000EE2F /* objc.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = objc.c; sourceTree = "<group>"; };
 		A536430E1F2E9C200000EE2F /* objc.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = objc.h; sourceTree = "<group>"; };
 		A53643101F2E9C4D0000EE2F /* parser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = parser.h; sourceTree = "<group>"; };
+		A5B763A51F50DD2400F74519 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = parser.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -70,6 +72,7 @@
 				A536430A1F2B0F940000EE2F /* mach-o.h */,
 				A536430B1F2B12140000EE2F /* mach-o.c */,
 				A53643101F2E9C4D0000EE2F /* parser.h */,
+				A5B763A51F50DD2400F74519 /* parser.c */,
 			);
 			path = "macho-parser";
 			sourceTree = "<group>";
@@ -132,6 +135,7 @@
 			files = (
 				A536430F1F2E9C200000EE2F /* objc.c in Sources */,
 				A536430C1F2B12140000EE2F /* mach-o.c in Sources */,
+				A5B763A61F50DD2400F74519 /* parser.c in Sources */,
 				A53643041F2B0ECD0000EE2F /* main.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

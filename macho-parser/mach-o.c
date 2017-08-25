@@ -64,14 +64,6 @@ mach_header_t macho_get_header(uint32_t offset){
     return header;
 }
 
-void* macho_load_bytes(uint32_t offset, uint32_t size){
-    FILE *mach = gmacho_file->file;
-    void *buf = calloc(1,size);
-    fseek(mach, offset, SEEK_SET);
-    fread(buf, size, 1, mach);
-    return buf;
-}
-
 
 
 void macho_print_symtab(mach_header_t header,
@@ -177,6 +169,10 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                 uint32_t hashSize = directory->hashSize;
                 uint32_t hashType = directory->hashType;
                 uint32_t pageSize = directory->pageSize;
+                
+                char *ident = macho_read_string(begin + identOffset);
+                printf("Identifier: %s\n",ident);
+                free(ident);
                 
                 if(hashType == HASH_TYPE_SHA1){
                     printf("CD signatures are signed with SHA1\n");

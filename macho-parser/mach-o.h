@@ -83,7 +83,6 @@ typedef struct code_directory {
 
 
 void macho_parse(FILE *file,size_t size);
-void* macho_load_bytes(uint32_t offset, uint32_t size);
 
 #endif
 

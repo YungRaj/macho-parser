@@ -14,4 +14,9 @@ typedef struct{
 
 extern macho_file *gmacho_file;
 
+void* macho_load_bytes(uint32_t offset, uint32_t size);
+size_t macho_string_size(uint64_t offset);
+char* macho_read_string(uint64_t offset);
+
+
 #endif
