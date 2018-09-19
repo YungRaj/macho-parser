@@ -148,11 +148,27 @@ void macho_print_symtab(mach_header_t header,
     }
 }
 
-static const char *specialSlots[5] = {"Entitlements.plist",
-                                      "Application Specific",
-                                      "Resource Directory",
-                                      "Requirements Blob",
-                                      "Bound Info.plist"};
+enum
+{
+    ENTITLEMENTS,
+    APPLICATION_SPECIFIC,
+    RESOURCE_DIR,
+    REQUIREMENTS_BLOB,
+    BOUND_INFO_PLIST
+};
+
+typedef struct{
+    char *name;
+    uint8_t *data;
+    uint8_t *hash;
+} special_slot;
+
+static special_slot specialSlots[5] = {{"Entitlements.plist", NULL, NULL },
+                                        {"Application Specific",NULL, NULL},
+                                        { "Resource Directory", NULL, NULL},
+                                        {"Requirements Blob", NULL, NULL},
+                                        {"Bound Info.plist", NULL, NULL}
+};
 
 #define min(a,b) \
     ({ __typeof__ (a) _a = (a); \
@@ -234,7 +250,7 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                     uint32_t pages = nCodeSlots;
                     
                     if(pages){
-                        printf("\tPage %u ",i);
+                        printf("\tPage %2u ",i);
                     }
                     uint8_t *hash = macho_load_bytes(begin + hashOffset + i * hashSize, hashSize);
                     
@@ -261,25 +277,29 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                 
                 for(int i = 0; i < nSpecialSlots; i++){
                     if(i<5)
-                        printf("\t%s ",specialSlots[i]);
+                        printf("\t%s ",specialSlots[i].name);
                     
                     uint8_t *hash = macho_load_bytes(begin + hashOffset + i * hashSize, hashSize);
                     
                     for(int j = 0; j < hashSize; j++){
                         printf("%.2x",hash[j]);
                     }
-                    free(hash);
+                    
+                    specialSlots[i].hash = hash;
+                    
                     printf("\n");
                 }
                 
                 free(directory);
                 break;
             case CSMAGIC_BLOBWRAPPER:
-                ;\
+                ;
                 break;
             case CSMAGIC_EMBEDDED_ENTITLEMENTS:
                 ;
                 char *entitlements = macho_load_bytes(begin + sizeof(struct Blob), length - sizeof(struct Blob));
+                
+                specialSlots[ENTITLEMENTS].data = (uint8_t*)entitlements;
                 
                 printf("\nEntitlements\n");
                 printf("%s\n",entitlements);
