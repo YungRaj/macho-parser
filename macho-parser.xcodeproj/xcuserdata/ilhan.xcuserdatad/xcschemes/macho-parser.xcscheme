@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "0900"
+   LastUpgradeVersion = "0940"
    version = "1.3">
    <BuildAction
       parallelizeBuildables = "YES"
@@ -63,7 +63,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "/Applications/Calculator.app/Contents/MacOS/Calculator"
+            argument = "/usr/libexec/amfid"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

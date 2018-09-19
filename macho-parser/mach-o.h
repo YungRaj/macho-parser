@@ -24,14 +24,14 @@ static struct cpu_type_names cpu_type_names[] = {
     {CPU_TYPE_ARM64,    "arm64"}
 };
 
-#define CSMAGIC_REQUIREMENT            uint32_t(0xfade0c00)
-#define CSMAGIC_REQUIREMENTS           uint32_t(0xfade0c01)
-#define CSMAGIC_CODEDIRECTORY          uint32_t(0xfade0c02)
-#define CSMAGIC_EMBEDDED_SIGNATURE     uint32_t(0xfade0cc0)
-#define CSMAGIC_EMBEDDED_SIGNATURE_OLD uint32_t(0xfade0b02)
-#define CSMAGIC_EMBEDDED_ENTITLEMENTS  uint32_t(0xfade7171)
-#define CSMAGIC_DETACHED_SIGNATURE     uint32_t(0xfade0cc1)
-#define CSMAGIC_BLOBWRAPPER            uint32_t(0xfade0b01)
+#define CSMAGIC_REQUIREMENT            0xfade0c00
+#define CSMAGIC_REQUIREMENTS           0xfade0c01
+#define CSMAGIC_CODEDIRECTORY          0xfade0c02
+#define CSMAGIC_EMBEDDED_SIGNATURE     0xfade0cc0
+#define CSMAGIC_EMBEDDED_SIGNATURE_OLD 0xfade0b02
+#define CSMAGIC_EMBEDDED_ENTITLEMENTS  0xfade7171
+#define CSMAGIC_DETACHED_SIGNATURE     0xfade0cc1
+#define CSMAGIC_BLOBWRAPPER            0xfade0b01
 
 #define CSSLOT_CODEDIRECTORY 0x00000
 #define CSSLOT_INFOSLOT      0x00001

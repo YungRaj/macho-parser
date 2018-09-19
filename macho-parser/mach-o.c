@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <string.h>
+#include <assert.h>
+#include <CommonCrypto/CommonDigest.h>
 #include "mach-o.h"
 #include "objc.h"
 
@@ -11,6 +14,11 @@ macho_file *gmacho_file = NULL;
 typedef struct fat_arch fat_arch_t;
 typedef struct fat_header fat_header_t;
 typedef struct mach_header mach_header_t;
+
+macho_file* get_macho()
+{
+    return gmacho_file;
+}
 
 uint32_t macho_get_magic(uint32_t offset){
     FILE *mach = gmacho_file->file;
@@ -146,22 +154,59 @@ static const char *specialSlots[5] = {"Entitlements.plist",
                                       "Requirements Blob",
                                       "Bound Info.plist"};
 
+#define min(a,b) \
+    ({ __typeof__ (a) _a = (a); \
+    __typeof__ (b) _b = (b); \
+    _a < _b ? _a : _b; })
 
-void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool swap, uint32_t offset, uint32_t size){
+bool macho_verify_code_slot(bool sha256, char *signature, uint32_t signature_size, uint32_t offset, uint32_t size)
+{
+    bool verified = false;
+    
+    uint8_t *blob = (uint8_t*)macho_load_bytes(offset,size);
+    
+    if(sha256)
+    {
+        unsigned char result[CC_SHA256_DIGEST_LENGTH];
+        CC_SHA256(blob, size, result);
+     
+        verified = (memcmp(result,signature,min(CC_SHA256_DIGEST_LENGTH,signature_size)) == 0);
+        
+        assert(CC_SHA256_DIGEST_LENGTH == signature_size);
+    } else {
+        unsigned char result[CC_SHA1_DIGEST_LENGTH];
+        CC_SHA1(blob, size, result);
+        
+        verified = (memcmp(result,signature,min(CC_SHA1_DIGEST_LENGTH,signature_size)) == 0);
+        
+        assert(CC_SHA1_DIGEST_LENGTH == signature_size);
+    }
+    
+    return verified;
+}
+
+
+void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool swap, uint32_t offset, uint32_t size)
+{
     SuperBlob *superblob = (SuperBlob*)macho_load_bytes(headeroff + offset,size);
     uint32_t blobcount = swap32(superblob->count);
+    
+    printf("%u blobs\n",blobcount);
     
     for(int blob = 0; blob < blobcount; blob++){
         BlobIndex index = superblob->index[blob];
         uint32_t blobtype = swap32(index.type);
         uint32_t bloboffset = swap32(index.offset);
-        switch(blobtype){
-            case CSSLOT_CODEDIRECTORY:
+        uint32_t begin = headeroff + offset + bloboffset;
+        
+        Blob *blob = macho_load_bytes(begin, sizeof(struct Blob));
+        uint32_t magic = swap32(blob->magic);
+        uint32_t length = swap32(blob->length);
+        
+        switch(magic){
+            case CSMAGIC_CODEDIRECTORY:
                 ;
-                uint32_t begin = headeroff + offset + bloboffset;
                 code_directory_t directory = macho_load_bytes(begin, sizeof(struct code_directory));
-                uint32_t magic = swap32(directory->blob.magic);
-                uint32_t length = swap32(directory->blob.length);
                 uint32_t hashOffset = swap32(directory->hashOffset);
                 uint32_t identOffset = swap32(directory->identOffset);
                 uint32_t nSpecialSlots = swap32(directory->nSpecialSlots);
@@ -169,14 +214,17 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                 uint32_t hashSize = directory->hashSize;
                 uint32_t hashType = directory->hashType;
                 uint32_t pageSize = directory->pageSize;
+                bool sha256 = false;
                 
                 char *ident = macho_read_string(begin + identOffset);
                 printf("Identifier: %s\n",ident);
+                printf("Page size: %u bytes\n",1 << pageSize);
                 free(ident);
                 
                 if(hashType == HASH_TYPE_SHA1){
                     printf("CD signatures are signed with SHA1\n");
                 } else if(hashType == HASH_TYPE_SHA256){
+                    sha256 = true;
                     printf("CD signatures are signed with SHA256\n");
                 } else {
                     printf("Unknown hashing algorithm in pages\n");
@@ -193,6 +241,16 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                     for(int j = 0; j < hashSize; j++){
                         printf("%.2x",hash[j]);
                     }
+                    
+                    if(i + 1 != nCodeSlots)
+                    {
+                        if(macho_verify_code_slot(sha256,(char*)hash,hashSize,i * (1 << pageSize), 1 << pageSize))
+                            printf(" OK...");
+                        else
+                            printf(" Invalid!!!");
+                    }
+                    
+                    
                     free(hash);
                     printf("\n");
                 }
@@ -213,23 +271,14 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                     free(hash);
                     printf("\n");
                 }
-                break;
-            case CSSLOT_REQUIREMENTS:
-                ;
-                break;
-            case CSSLOT_RESOURCEDIR:
-                ;
-                break;
-            case CSSLOT_APPLICATION:
-                ;
-                break;
-            case CSSLOT_ENTITLEMENTS:
-                ;
-                begin = headeroff + offset + bloboffset;
-                struct Blob *blob = macho_load_bytes(begin, sizeof(Blob));
-                magic = swap32(blob->magic);
-                length = swap32(blob->length);
                 
+                free(directory);
+                break;
+            case CSMAGIC_BLOBWRAPPER:
+                ;\
+                break;
+            case CSMAGIC_EMBEDDED_ENTITLEMENTS:
+                ;
                 char *entitlements = macho_load_bytes(begin + sizeof(struct Blob), length - sizeof(struct Blob));
                 
                 printf("\nEntitlements\n");
@@ -241,6 +290,7 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                 ;
                 break;
         }
+        free(blob);
     }
     free(superblob);
 }
