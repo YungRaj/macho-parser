@@ -262,7 +262,7 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                     
                     if(i + 1 != nCodeSlots)
                     {
-                        if(macho_verify_code_slot(sha256,(char*)hash,hashSize,i * (1 << pageSize), 1 << pageSize))
+                        if(macho_verify_code_slot(sha256,(char*)hash,hashSize,headeroff + i * (1 << pageSize), 1 << pageSize))
                             printf(" OK...");
                         else
                             printf(" Invalid!!!");
@@ -270,8 +270,10 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                         if(macho_verify_code_slot(sha256,
                                                   (char*)hash,
                                                   hashSize,
-                                                  i * (1 << pageSize),
+                                                  headeroff + i * (1 << pageSize),
                                                   (headeroff + offset) % (1 << pageSize)))
+                        // hash the last page only until the code signature,
+                        // so that that code signature doesn't get included into hash
                             printf(" OK...");
                     }
                     
