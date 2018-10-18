@@ -9,6 +9,8 @@
 #include "mach-o.h"
 #include "objc.h"
 
+/* todo list, don't manually load each byte needed onto the heap, just use universal buffer */
+
 macho_file *gmacho_file = NULL;
 
 typedef struct fat_arch fat_arch_t;
@@ -264,6 +266,13 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                             printf(" OK...");
                         else
                             printf(" Invalid!!!");
+                    } else {
+                        if(macho_verify_code_slot(sha256,
+                                                  (char*)hash,
+                                                  hashSize,
+                                                  i * (1 << pageSize),
+                                                  (headeroff + offset) % (1 << pageSize)))
+                            printf(" OK...");
                     }
                     
                     
