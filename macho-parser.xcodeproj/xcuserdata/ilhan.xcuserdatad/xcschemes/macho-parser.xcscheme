@@ -63,7 +63,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "/usr/libexec/amfid"
+            argument = "/Applications/Launchpad.app/Contents/MacOS/Launchpad"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

@@ -150,6 +150,13 @@ void macho_print_symtab(mach_header_t header,
     }
 }
 
+void macho_parse_linkedit(mach_vm_address_t addr, uint64_t offset, uint64_t size)
+{
+    // todo list rebasing opcodes, binding info, exports, function starts, data in code, etc
+    // this is something i don't know how to do yet as it is not documented well
+    // might not ever get to this, because it's hard
+}
+
 enum
 {
     ENTITLEMENTS,
@@ -163,6 +170,8 @@ typedef struct{
     char *name;
     uint8_t *data;
     uint8_t *hash;
+    uint32_t hashSize;
+    bool sha256;
 } special_slot;
 
 static special_slot specialSlots[5] = {{"Entitlements.plist", NULL, NULL },
@@ -176,6 +185,28 @@ static special_slot specialSlots[5] = {{"Entitlements.plist", NULL, NULL },
     ({ __typeof__ (a) _a = (a); \
     __typeof__ (b) _b = (b); \
     _a < _b ? _a : _b; })
+
+bool macho_compare_hash(uint8_t *hash1, uint8_t *hash2, uint32_t hashSize)
+{
+    return (memcmp(hash1, hash2, hashSize) == 0);
+}
+
+uint8_t* macho_compute_hash(bool sha256, uint8_t *blob, uint32_t size)
+{
+    uint8_t *result;
+    
+    if(sha256)
+    {
+        result = malloc(CC_SHA256_DIGEST_LENGTH);
+        CC_SHA256(blob, size, result);
+    } else
+    {
+        result = malloc(CC_SHA1_DIGEST_LENGTH);
+        CC_SHA1(blob, size, result);
+    }
+    
+    return result;
+}
 
 bool macho_verify_code_slot(bool sha256, char *signature, uint32_t signature_size, uint32_t offset, uint32_t size)
 {
@@ -287,6 +318,7 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                 printf("\nSpecial Slots\n");
                 
                 for(int i = 0; i < nSpecialSlots; i++){
+                    
                     if(i<5)
                         printf("\t%s ",specialSlots[i].name);
                     
@@ -296,7 +328,82 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                         printf("%.2x",hash[j]);
                     }
                     
+                    
+                    specialSlots[i].sha256 = (hashType == HASH_TYPE_SHA256);
                     specialSlots[i].hash = hash;
+                    specialSlots[i].hashSize = hashSize;
+                    
+                    uint8_t *zero_buffer = calloc(hashSize, sizeof(uint8_t));
+                    
+                    if(memcmp(hash, zero_buffer, hashSize) != 0)
+                    {
+                        if(i == BOUND_INFO_PLIST)
+                        {
+                            char *path = get_macho()->path;
+                            
+                            char **res = NULL;
+                            bool found = false;
+                            uint32_t num_tokens = 0;
+                            uint32_t new_length = 0;
+                            
+                            char *app_dir = strtok(path, "/");
+                            
+                            while (app_dir) {
+                                new_length += strlen(app_dir);
+                                
+                                res = realloc (res, sizeof (char*) * ++num_tokens);
+                                
+                                if (res == NULL)
+                                    break;
+                                
+                                res[num_tokens-1] = app_dir;
+                                
+                                app_dir = strtok (NULL, "/");
+                                
+                                if(strcmp(app_dir,"MacOS") == 0)
+                                {
+                                    found = true;
+                                    break;
+                                }
+                                
+                            }
+                            
+                            if(!found)
+                                continue;
+                            
+                            new_length += num_tokens + 1;
+                            
+                            char *info_plist = malloc(sizeof(char) * new_length);
+                            
+                            for(int j=0; j < num_tokens; j++)
+                            {
+                                strcat(info_plist,"/");
+                                strcat(info_plist,res[j]);
+                            }
+                            
+                            strcat(info_plist,"/Info.plist");
+                            
+                            FILE *info = fopen(info_plist, "rb");
+                            fseek(info,0,SEEK_END);
+                            size_t info_size = ftell(info);
+                            fseek(info,0,SEEK_SET);
+                            
+                            uint8_t *info_buf = malloc(info_size);
+                            fseek(info,0,SEEK_SET);
+                            fread(info_buf,1,size,info);
+                            
+                            uint8_t *info_hash = macho_compute_hash(specialSlots[i].sha256, info_buf, (uint32_t)info_size);
+                            
+                            if(memcmp(info_hash, specialSlots[i].hash, specialSlots[i].hashSize) == 0)
+                                printf(" OK...");
+                            else
+                                printf(" Invalid!!!");
+                        
+                            
+                        }
+                                                      
+                    }
+                                                  
                     
                     printf("\n");
                 }
@@ -306,13 +413,27 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
             case CSMAGIC_BLOBWRAPPER:
                 ;
                 break;
+            case CSMAGIC_REQUIREMENTS:
+                ;
+                break;
             case CSMAGIC_EMBEDDED_ENTITLEMENTS:
                 ;
-                char *entitlements = macho_load_bytes(begin + sizeof(struct Blob), length - sizeof(struct Blob));
+                uint8_t *blob_raw;
+                uint8_t *blob_hash;
                 
-                specialSlots[ENTITLEMENTS].data = (uint8_t*)entitlements;
+                char *entitlements;
                 
-                printf("\nEntitlements\n");
+                entitlements = macho_load_bytes(begin + sizeof(struct Blob), length - sizeof(struct Blob));
+                blob_raw = macho_load_bytes(begin, length);
+                blob_hash = macho_compute_hash(specialSlots[ENTITLEMENTS].sha256, blob_raw, length);
+                
+                printf("\nEntitlements ");
+                
+                if(macho_compare_hash(specialSlots[ENTITLEMENTS].hash, blob_hash, specialSlots[ENTITLEMENTS].hashSize))
+                    printf("OK...\n");
+                else
+                    printf("Invalid!!!\n");
+                
                 printf("%s\n",entitlements);
                 
                 free(entitlements);
@@ -377,6 +498,14 @@ void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool sw
                         macho_parse_objc_64(section->addr,headeroff + section->offset,section->size);
                     }
                     
+                    if(strstr("__LINKEDIT",section->sectname))
+                    {
+                        // manually look for the LINKEDIT segment so that we can parse information not covered by load commands
+                        // probably a better way to do this semantically but for now this is fine
+                        // don't cover the indirect/direct symbol tables, code signature etc because those are covered by lc's
+                        macho_parse_linkedit(section->addr,headeroff + section->offset, section->size);
+                    }
+                    
                     sect_offset += sizeof(struct section_64);
                     free(section);
                 }
@@ -434,6 +563,10 @@ void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool sw
                 
             case LC_CODE_SIGNATURE:
                 ;
+                // looks weird at first, but the code signature load command refers the linkedit_data_command structure
+                // the code signature still points to the code signature and not the LINKEDIT segment
+                // because the code signature is at the end of the linkedit segment
+                // code signatures are going to always be at the end of the file because they can change based on who signs it
                 struct linkedit_data_command *linkedit = (struct linkedit_data_command*)macho_load_bytes(offset,sizeof(struct linkedit_data_command));
                 swap(linkedit_data_command,linkedit,swap);
                 uint32_t dataoff = linkedit->dataoff;
@@ -506,11 +639,12 @@ void macho_parse_fat_header(bool swap, uint32_t offset){
     }
 }
 
-void macho_parse(FILE *mach, size_t size){
+void macho_parse(FILE *mach, char *path, size_t size){
     gmacho_file = malloc(sizeof(macho_file));
     char *buf = malloc(size);
     fseek(mach,0,SEEK_SET);
     fread(buf,1,size,mach);
+    gmacho_file->path = path;
     gmacho_file->file = mach;
     gmacho_file->buffer = buf;
     gmacho_file->size = size;

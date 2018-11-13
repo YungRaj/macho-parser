@@ -7,6 +7,7 @@
 #define swapn(x,y,n,s) if(s) swap_ ## x(y,n,NXHostByteOrder())
 
 typedef struct{
+    char *path;
     FILE *file;
     char *buffer;
     size_t size;

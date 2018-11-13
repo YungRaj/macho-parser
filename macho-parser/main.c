@@ -15,7 +15,8 @@ int main(int argc, const char * argv[]) {
     size_t size = ftell(mach);
     fseek(mach,0,SEEK_SET);
     
-    macho_parse(mach,size);
+    // parse all the load commands, segments, objc metadata, multiple architectures, etc
+    macho_parse(mach, argv[1] ,size);
     fclose(mach);
     
     return 0;
