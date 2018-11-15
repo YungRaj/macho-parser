@@ -392,15 +392,21 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                             fseek(info,0,SEEK_SET);
                             fread(info_buf,1,size,info);
                             
+                            fclose(info);
+                            
                             uint8_t *info_hash = macho_compute_hash(specialSlots[i].sha256, info_buf, (uint32_t)info_size);
                             
                             if(memcmp(info_hash, specialSlots[i].hash, specialSlots[i].hashSize) == 0)
                                 printf(" OK...");
                             else
                                 printf(" Invalid!!!");
+                            
+                            free(info_hash);
                         
                             
                         }
+                        
+                        free(zero_buffer);
                                                       
                     }
                                                   
@@ -437,6 +443,8 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                 printf("%s\n",entitlements);
                 
                 free(entitlements);
+                free(blob_raw);
+                free(blob_hash);
                 break;
             default:
                 ;

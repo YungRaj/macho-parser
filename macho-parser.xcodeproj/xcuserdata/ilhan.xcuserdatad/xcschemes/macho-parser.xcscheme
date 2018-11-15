@@ -63,7 +63,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "/Applications/Launchpad.app/Contents/MacOS/Launchpad"
+            argument = "/Applications/Chess.app/Contents/MacOS/Chess"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
