@@ -6,12 +6,18 @@
 #define swap(x,y,s) if(s) swap_ ## x(y,NXHostByteOrder())
 #define swapn(x,y,n,s) if(s) swap_ ## x(y,n,NXHostByteOrder())
 
+#include <stdbool.h>
+
 typedef struct{
     uint32_t num_symbols;
     char **symbols;
 } symbol_table;
 
 typedef struct{
+    bool fat;
+    bool is64bit;
+    bool arm;
+    bool x86;
     char *path;
     FILE *file;
     char *buffer;

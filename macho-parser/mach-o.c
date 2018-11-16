@@ -91,8 +91,17 @@ void macho_disassemble_code(mach_vm_address_t offset)
     
     code_buffer = (const uint8_t*)(gmacho_file->buffer + offset);
     
-    if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK)
+    if ( gmacho_file->x86 && gmacho_file->is64bit ){
+        if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK)
+            return;
+    }
+    else if ( gmacho_file->arm && gmacho_file->is64bit){
+        if (cs_open(CS_ARCH_ARM64, CS_MODE_ARM, &handle) != CS_ERR_OK)
+            return;
+    } else
         return;
+    // we only care about 64 bit binaries that either are arm or x86
+        
     
     count = cs_disasm(handle, code_buffer, 0x100, 0x1000, 0, &insn);
     if (count > 0) {
@@ -679,6 +688,9 @@ void macho_parse_header(bool swap, uint32_t offset){
     
     if(macho_64bit(magic)){
         printf("Mach-O image is 64 bit\n");
+        
+        gmacho_file->is64bit = true;
+        
     } else if(macho_valid(magic)) {
         printf("Mach-O image is 32 bit\n");
     } else {
@@ -691,10 +703,18 @@ void macho_parse_header(bool swap, uint32_t offset){
     
     cpu_type_t cpu_type = header.cputype;
     
+    if(cpu_type == CPU_TYPE_X86_64)
+        gmacho_file->x86 = true;
+    if(cpu_type == CPU_TYPE_ARM)
+        gmacho_file->arm = true;
+    if(cpu_type == CPU_TYPE_ARM64)
+        gmacho_file->arm = true;
+    
     for(int i=0; i<NUM_CPUS; i++){
         struct cpu_type_names cpu = cpu_type_names[i];
         if(cpu_type == cpu.cputype){
             printf("CPU - %s\n",cpu.cpu_name);
+            
             break;
         }
     }
@@ -706,6 +726,8 @@ void macho_parse_header(bool swap, uint32_t offset){
 void macho_parse_fat_header(bool swap, uint32_t offset){
     fat_header_t header = macho_get_fat_header(0);
     swap(fat_header,&header,swap);
+    
+    gmacho_file->fat = true;
     
     printf("FAT MAGIC %x\n",header.magic);
     

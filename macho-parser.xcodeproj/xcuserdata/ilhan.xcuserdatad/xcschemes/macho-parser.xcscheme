@@ -63,7 +63,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "/Applications/Calculator.app/Contents/MacOS/Calculator BitFieldBox-initWithFrame:"
+            argument = "/Users/ilhan/Downloads/jtool.arm64 _removeLoadCommand"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
