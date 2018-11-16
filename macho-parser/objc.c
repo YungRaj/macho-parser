@@ -2,12 +2,15 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "parser.h"
 #include "mach-o.h"
 #include "objc.h"
 
-void macho_parse_objc_methods(mach_vm_address_t diff, uint64_t offset, uint64_t n, bool metaclass){
+extern void macho_disassemble_code(mach_vm_address_t offset);
+
+void macho_parse_objc_methods(const char *classname, mach_vm_address_t diff, uint64_t offset, uint64_t n, bool metaclass){
     uint64_t off = offset + sizeof(struct _objc_2_class_method_info);
     
     printf("\t\t\tMethods\n");
@@ -16,10 +19,63 @@ void macho_parse_objc_methods(mach_vm_address_t diff, uint64_t offset, uint64_t 
         struct _objc_method *method = macho_load_bytes((uint32_t)off,sizeof(struct _objc_method));
         char *methodname = macho_read_string((uint64_t)method->name - diff);
         
+        bool found = false;
+        
+        if(gmacho_file->symboltable)
+        {
+            char **symbols = gmacho_file->symboltable->symbols;
+            uint32_t num_symbols = gmacho_file->symboltable->num_symbols;
+            
+            for(int j=0; j<num_symbols; j++)
+            {
+                char *symbolclassname;
+                char *symbolmethodname;
+                
+                char *symbol = strdup(symbols[j]);
+                
+                char **res = NULL;
+                uint32_t num_tokens = 0;
+                
+                char *tmp = NULL;
+                
+                tmp = strtok(symbol, "-");
+                
+                while (tmp) {
+                    
+                    res = realloc (res, sizeof (char*) * ++num_tokens);
+                    
+                    if (res == NULL)
+                        break;
+                    
+                    res[num_tokens-1] = tmp;
+                    
+                    tmp = strtok (NULL, "-");
+                    
+                }
+                
+                if(num_tokens == 2)
+                {
+                    symbolclassname = res[0];
+                    symbolmethodname = res[1];
+                    
+                    if(strcmp(classname,symbolclassname) == 0 &&
+                       strcmp(methodname,symbolmethodname) == 0)
+                    {
+                        found = true;
+                    }
+                }
+                
+                free(res);
+            }
+        }
+        
         if(metaclass)
             printf("\t\t\t\t0x%08llx: +%s\n",method->offset,methodname);
         else
             printf("\t\t\t\t0x%08llx: -%s\n",method->offset,methodname);
+        
+        if(found)
+            macho_disassemble_code(method->offset);
         
         free(method);
         free(methodname);
@@ -27,7 +83,7 @@ void macho_parse_objc_methods(mach_vm_address_t diff, uint64_t offset, uint64_t 
     }
 }
 
-void macho_parse_objc_properties(mach_vm_address_t diff, uint64_t offset, uint64_t n){
+void macho_parse_objc_properties(const char *classname, mach_vm_address_t diff, uint64_t offset, uint64_t n){
     uint64_t off = offset + sizeof(struct _objc_2_class_property_info);
     
     printf("\t\t\tProperties\n");
@@ -46,7 +102,7 @@ void macho_parse_objc_properties(mach_vm_address_t diff, uint64_t offset, uint64
     }
 }
 
-void macho_parse_objc_ivars(mach_vm_address_t diff, uint64_t offset, uint64_t n){
+void macho_parse_objc_ivars(const char *classname, mach_vm_address_t diff, uint64_t offset, uint64_t n){
     uint64_t off = offset + sizeof(struct _objc_2_class_ivar_info);
     
     printf("\t\t\tIvars\n");
@@ -83,7 +139,7 @@ void macho_parse_objc_class(mach_vm_address_t diff, struct _objc_2_class *class,
         struct _objc_2_class_ivar_info *ivar_info = (struct _objc_2_class_ivar_info*)macho_load_bytes((uint32_t)ivarinfooff,sizeof(struct _objc_2_class_ivar_info));
         uint64_t ivarcount = ivar_info->count;
         
-        macho_parse_objc_ivars(diff,ivarinfooff,ivarcount);
+        macho_parse_objc_ivars(name,diff,ivarinfooff,ivarcount);
         
         free(ivar_info);
     }
@@ -95,7 +151,7 @@ void macho_parse_objc_class(mach_vm_address_t diff, struct _objc_2_class *class,
         struct _objc_2_class_property_info *property_info = (struct _objc_2_class_property_info*)macho_load_bytes((uint32_t)propertyinfooff,sizeof(struct _objc_2_class_property_info));
         uint64_t propertycount = property_info->count;
         
-        macho_parse_objc_properties(diff,propertyinfooff,propertycount);
+        macho_parse_objc_properties(name,diff,propertyinfooff,propertycount);
         
         free(property_info);
     }
@@ -108,7 +164,7 @@ void macho_parse_objc_class(mach_vm_address_t diff, struct _objc_2_class *class,
         
         uint64_t methodcount = method_info->count;
         
-        macho_parse_objc_methods(diff,methodinfooff,methodcount,metaclass);
+        macho_parse_objc_methods(name,diff,methodinfooff,methodcount,metaclass);
         free(method_info);
     }
     

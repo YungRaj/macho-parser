@@ -9,6 +9,8 @@
 #include "mach-o.h"
 #include "objc.h"
 
+#include <capstone/capstone.h>
+
 /* todo list, don't manually load each byte needed onto the heap, just use universal buffer */
 
 macho_file *gmacho_file = NULL;
@@ -74,6 +76,40 @@ mach_header_t macho_get_header(uint32_t offset){
     return header;
 }
 
+void macho_disassemble_code(mach_vm_address_t offset)
+{
+    csh handle;
+    cs_insn *insn;
+    size_t count;
+    const uint8_t *code_buffer;
+    
+    if(offset > gmacho_file->size)
+        offset -= 0x100000000;
+    
+    if(offset > gmacho_file->size)
+        return;
+    
+    code_buffer = (const uint8_t*)(gmacho_file->buffer + offset);
+    
+    if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK)
+        return;
+    
+    count = cs_disasm(handle, code_buffer, 0x100, 0x1000, 0, &insn);
+    if (count > 0) {
+        size_t j;
+        for (j = 0; j < count; j++) {
+            printf("\t\t\t\t\t0x%"PRIx64":\t%s\t\t%s\n", insn[j].address, insn[j].mnemonic,
+                   insn[j].op_str);
+        }
+        
+        cs_free(insn, count);
+    } else
+        printf("ERROR: Failed to disassemble given code!\n");
+    
+    cs_close(&handle);
+    
+}
+
 
 
 void macho_print_symtab(mach_header_t header,
@@ -93,11 +129,32 @@ void macho_print_symtab(mach_header_t header,
                 continue;
             }
             
+            bool found = false;
             const char* type = NULL;
+            const char* symname = &strtab[nl->n_un.n_strx];
+            
             switch(nl->n_type & N_TYPE) {
                 case N_UNDF: type = "N_UNDF"; break;
                 case N_ABS:  type = "N_ABS"; break;
-                case N_SECT: type = "N_SECT"; break;
+                case N_SECT: type = "N_SECT";
+                    
+                    if(gmacho_file->symboltable)
+                    {
+                        char **symbols = gmacho_file->symboltable->symbols;
+                        uint32_t num_symbols = gmacho_file->symboltable->num_symbols;
+                        
+                        for(int j=0; j<num_symbols; j++)
+                        {
+                            char *symbol = symbols[j];
+                            
+                            if(strcmp(symname,symbol) == 0)
+                            {
+                                found = true;
+                            }
+                        }
+                    }
+                    
+                    break;
                 case N_PBUD: type = "N_PBUD"; break;
                 case N_INDR: type = "N_INDR"; break;
                     
@@ -108,8 +165,10 @@ void macho_print_symtab(mach_header_t header,
                     return;
             }
             
-            const char* symname = &strtab[nl->n_un.n_strx];
             printf("\t\tSymbol \"%s\" type: %s value: 0x%llx\n", symname, type, nl->n_value);
+            
+            if(found)
+               macho_disassemble_code(nl->n_value);
         }
         free(symtab);
         free(strtab);
@@ -129,10 +188,30 @@ void macho_print_symtab(mach_header_t header,
             }
             
             const char* type = NULL;
+            const char* symname = &strtab[nl->n_un.n_strx];
+            
             switch(nl->n_type & N_TYPE) {
                 case N_UNDF: type = "N_UNDF"; break;
-                case N_ABS:  type = "N_ABS"; break;
-                case N_SECT: type = "N_SECT"; break;
+                case N_ABS:  type = "N_ABS";  break;
+                case N_SECT: type = "N_SECT";
+                    
+                    if(gmacho_file->symboltable)
+                    {
+                        char **symbols = gmacho_file->symboltable->symbols;
+                        uint32_t num_symbols = gmacho_file->symboltable->num_symbols;
+                        
+                        for(int j=0; j<num_symbols; j++)
+                        {
+                            char *symbol = symbols[j];
+                            
+                            if(strcmp(symname,symbol) == 0)
+                            {
+                                
+                            }
+                        }
+                    }
+                    
+                    break;
                 case N_PBUD: type = "N_PBUD"; break;
                 case N_INDR: type = "N_INDR"; break;
                 default:
@@ -142,7 +221,6 @@ void macho_print_symtab(mach_header_t header,
                     return;
             }
             
-            const char* symname = &strtab[nl->n_un.n_strx];
             printf("\t\tSymbol \"%s\" type: %s value: 0x%x\n", symname, type, value);
         }
         free(symtab);
@@ -647,7 +725,7 @@ void macho_parse_fat_header(bool swap, uint32_t offset){
     }
 }
 
-void macho_parse(FILE *mach, char *path, size_t size){
+void macho_parse(FILE *mach, char *path, size_t size, symbol_table *symbols){
     gmacho_file = malloc(sizeof(macho_file));
     char *buf = malloc(size);
     fseek(mach,0,SEEK_SET);
@@ -656,7 +734,7 @@ void macho_parse(FILE *mach, char *path, size_t size){
     gmacho_file->file = mach;
     gmacho_file->buffer = buf;
     gmacho_file->size = size;
-    
+    gmacho_file->symboltable = symbols;
     
     uint32_t magic = macho_get_magic(0);
     bool swap = macho_swapped(magic);

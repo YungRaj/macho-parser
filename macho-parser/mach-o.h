@@ -82,7 +82,7 @@ typedef struct code_directory {
 
 
 
-void macho_parse(FILE *file, char *path, size_t size);
+void macho_parse(FILE *file, char *path, size_t size, symbol_table *symbols);
 
 #endif
 
