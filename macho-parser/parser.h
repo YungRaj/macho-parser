@@ -13,6 +13,7 @@ typedef struct{
     char **symbols;
 } symbol_table;
 
+// add some instance methods to make this object oriented using POD
 typedef struct{
     bool fat;
     bool is64bit;
@@ -27,7 +28,7 @@ typedef struct{
 
 extern macho_file *gmacho_file;
 
-void* macho_load_bytes(uint32_t offset, uint32_t size);
+void* macho_get_bytes(uint32_t offset);
 size_t macho_string_size(uint64_t offset);
 char* macho_read_string(uint64_t offset);
 

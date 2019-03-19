@@ -83,6 +83,7 @@ typedef struct code_directory {
 
 
 void macho_parse(FILE *file, char *path, size_t size, symbol_table *symbols);
+// file to be processed, path of the file, size of the file, and symbols to find in file
 
 #endif
 

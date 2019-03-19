@@ -101,6 +101,7 @@ void macho_disassemble_code(mach_vm_address_t offset)
     } else
         return;
     // we only care about 64 bit binaries that either are arm or x86
+    // capstone does the rest of the work by providing the inline disassembly
         
     
     count = cs_disasm(handle, code_buffer, 0x100, 0x1000, 0, &insn);
@@ -128,9 +129,9 @@ void macho_print_symtab(mach_header_t header,
                         uint32_t stroff,
                         uint32_t strsize){
     if(macho_64bit(header.magic)){
-        struct nlist_64 *symtab = macho_load_bytes(symoff + headeroff,sizeof(struct nlist_64) * nsyms);
+        struct nlist_64 *symtab = macho_get_bytes(symoff + headeroff);
         
-        char *strtab = macho_load_bytes(stroff + headeroff,strsize);
+        char *strtab = macho_get_bytes(stroff + headeroff);
         for(int i=0; i<nsyms; i++){
             struct nlist_64* nl = &symtab[i];
             
@@ -147,6 +148,8 @@ void macho_print_symtab(mach_header_t header,
                 case N_ABS:  type = "N_ABS"; break;
                 case N_SECT: type = "N_SECT";
                     
+                    // this symbol table is provided by the user to disassemble any symbols found
+                    // find the symbol here
                     if(gmacho_file->symboltable)
                     {
                         char **symbols = gmacho_file->symboltable->symbols;
@@ -169,8 +172,6 @@ void macho_print_symtab(mach_header_t header,
                     
                 default:
                     printf("Invalid symbol type: 0x%x\n", nl->n_type & N_TYPE);
-                    free(symtab);
-                    free(strtab);
                     return;
             }
             
@@ -179,11 +180,9 @@ void macho_print_symtab(mach_header_t header,
             if(found)
                macho_disassemble_code(nl->n_value);
         }
-        free(symtab);
-        free(strtab);
     } else {
-        struct nlist *symtab = macho_load_bytes(symoff + headeroff,sizeof(struct nlist) * nsyms);
-        char *strtab = macho_load_bytes(stroff + headeroff,strsize);
+        struct nlist *symtab = macho_get_bytes(symoff + headeroff);
+        char *strtab = macho_get_bytes(stroff + headeroff);
         for(int i=0; i<nsyms; i++){
             struct nlist* nl = &symtab[i];
             
@@ -204,6 +203,8 @@ void macho_print_symtab(mach_header_t header,
                 case N_ABS:  type = "N_ABS";  break;
                 case N_SECT: type = "N_SECT";
                     
+                    // this symbol table is provided by the user to disassemble any symbols found
+                    // find the symbol here
                     if(gmacho_file->symboltable)
                     {
                         char **symbols = gmacho_file->symboltable->symbols;
@@ -225,15 +226,11 @@ void macho_print_symtab(mach_header_t header,
                 case N_INDR: type = "N_INDR"; break;
                 default:
                     printf("Invalid symbol type: 0x%x\n", nl->n_type & N_TYPE);
-                    free(symtab);
-                    free(strtab);
                     return;
             }
             
             printf("\t\tSymbol \"%s\" type: %s value: 0x%x\n", symname, type, value);
         }
-        free(symtab);
-        free(strtab);
     }
 }
 
@@ -299,7 +296,7 @@ bool macho_verify_code_slot(bool sha256, char *signature, uint32_t signature_siz
 {
     bool verified = false;
     
-    uint8_t *blob = (uint8_t*)macho_load_bytes(offset,size);
+    uint8_t *blob = (uint8_t*)macho_get_bytes(offset);
     
     if(sha256)
     {
@@ -324,7 +321,7 @@ bool macho_verify_code_slot(bool sha256, char *signature, uint32_t signature_siz
 
 void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool swap, uint32_t offset, uint32_t size)
 {
-    SuperBlob *superblob = (SuperBlob*)macho_load_bytes(headeroff + offset,size);
+    SuperBlob *superblob = (SuperBlob*)macho_get_bytes(headeroff + offset);
     uint32_t blobcount = swap32(superblob->count);
     
     printf("%u blobs\n",blobcount);
@@ -335,14 +332,14 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
         uint32_t bloboffset = swap32(index.offset);
         uint32_t begin = headeroff + offset + bloboffset;
         
-        Blob *blob = macho_load_bytes(begin, sizeof(struct Blob));
+        Blob *blob = macho_get_bytes(begin);
         uint32_t magic = swap32(blob->magic);
         uint32_t length = swap32(blob->length);
         
         switch(magic){
             case CSMAGIC_CODEDIRECTORY:
                 ;
-                code_directory_t directory = macho_load_bytes(begin, sizeof(struct code_directory));
+                code_directory_t directory = macho_get_bytes(begin);
                 uint32_t hashOffset = swap32(directory->hashOffset);
                 uint32_t identOffset = swap32(directory->identOffset);
                 uint32_t nSpecialSlots = swap32(directory->nSpecialSlots);
@@ -355,7 +352,6 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                 char *ident = macho_read_string(begin + identOffset);
                 printf("Identifier: %s\n",ident);
                 printf("Page size: %u bytes\n",1 << pageSize);
-                free(ident);
                 
                 if(hashType == HASH_TYPE_SHA1){
                     printf("CD signatures are signed with SHA1\n");
@@ -372,7 +368,7 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                     if(pages){
                         printf("\tPage %2u ",i);
                     }
-                    uint8_t *hash = macho_load_bytes(begin + hashOffset + i * hashSize, hashSize);
+                    uint8_t *hash = macho_get_bytes(begin + hashOffset + i * hashSize);
                     
                     for(int j = 0; j < hashSize; j++){
                         printf("%.2x",hash[j]);
@@ -395,8 +391,6 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                             printf(" OK...");
                     }
                     
-                    
-                    free(hash);
                     printf("\n");
                 }
                 
@@ -409,7 +403,7 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                     if(i<5)
                         printf("\t%s ",specialSlots[i].name);
                     
-                    uint8_t *hash = macho_load_bytes(begin + hashOffset + i * hashSize, hashSize);
+                    uint8_t *hash = macho_get_bytes(begin + hashOffset + i * hashSize);
                     
                     for(int j = 0; j < hashSize; j++){
                         printf("%.2x",hash[j]);
@@ -487,8 +481,6 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                                 printf(" OK...");
                             else
                                 printf(" Invalid!!!");
-                            
-                            free(info_hash);
                         
                             
                         }
@@ -500,8 +492,6 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                     
                     printf("\n");
                 }
-                
-                free(directory);
                 break;
             case CSMAGIC_BLOBWRAPPER:
                 ;
@@ -516,8 +506,11 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                 
                 char *entitlements;
                 
-                entitlements = macho_load_bytes(begin + sizeof(struct Blob), length - sizeof(struct Blob));
-                blob_raw = macho_load_bytes(begin, length);
+                entitlements = malloc(length - sizeof(struct Blob) + 1);
+                memcpy(entitlements, macho_get_bytes(begin + sizeof(struct Blob)), length - sizeof(struct Blob));
+                entitlements[length - sizeof(struct Blob)] = '\n';
+                
+                blob_raw = macho_get_bytes(begin);
                 blob_hash = macho_compute_hash(specialSlots[ENTITLEMENTS].sha256, blob_raw, length);
                 
                 printf("\nEntitlements ");
@@ -530,21 +523,18 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                 printf("%s\n",entitlements);
                 
                 free(entitlements);
-                free(blob_raw);
-                free(blob_hash);
+                
                 break;
             default:
                 ;
                 break;
         }
-        free(blob);
     }
-    free(superblob);
 }
 
 void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool swap, uint32_t offset, uint32_t ncmds){
     for(int i=0; i<ncmds; i++){
-        struct load_command *load_cmd = (struct load_command*)macho_load_bytes(offset,sizeof(struct load_command));
+        struct load_command *load_cmd = (struct load_command*)macho_get_bytes(offset);
         swap(load_command, load_cmd, swap);
         
         uint32_t cmdtype = load_cmd->cmd;
@@ -553,7 +543,7 @@ void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool sw
         switch(cmdtype){
             case LC_SEGMENT:
                 ;
-                struct segment_command *segment_command = (struct segment_command*)macho_load_bytes(offset,sizeof(struct segment_command));
+                struct segment_command *segment_command = (struct segment_command*)macho_get_bytes(offset);
                 swap(segment_command, segment_command, swap);
                 uint32_t nsects = segment_command->nsects;
                 uint32_t sect_offset = offset + sizeof(struct segment_command);
@@ -562,20 +552,18 @@ void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool sw
                                                              segment_command->vmaddr + segment_command->vmsize);
                 
                 for(int j=1; j<=nsects; j++){
-                    struct section *section = (struct section*)macho_load_bytes(sect_offset,sizeof(struct section));
+                    struct section *section = (struct section*)macho_get_bytes(sect_offset);
                     printf("\tSection %d: 0x%08x to 0x%08x - %s\n",j,
                                                                    section->addr,
                                                                    section->addr + section->size,
                                                                    section->sectname);
                     
                     sect_offset += sizeof(struct section);
-                    free(section);
                 }
-                free(segment_command);
                 break;
             case LC_SEGMENT_64:
                 ;
-                struct segment_command_64 *segment_command_64 = (struct segment_command_64*)macho_load_bytes(offset,sizeof(struct segment_command_64));
+                struct segment_command_64 *segment_command_64 = (struct segment_command_64*)macho_get_bytes(offset);
                 swap(segment_command_64, segment_command_64, swap);
                 nsects = segment_command_64->nsects;
                 sect_offset = offset + sizeof(struct segment_command_64);
@@ -584,7 +572,7 @@ void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool sw
                                                                 segment_command_64->vmaddr + segment_command_64->vmsize);
                 
                 for(int j=1; j<=nsects; j++){
-                    struct section_64 *section = (struct section_64*)macho_load_bytes(sect_offset,sizeof(struct section_64));
+                    struct section_64 *section = (struct section_64*)macho_get_bytes(sect_offset);
                     printf("\tSection %d: 0x%08llx to 0x%08llx - %s\n",j,
                                                                section->addr,
                                                                section->addr + section->size,
@@ -602,26 +590,24 @@ void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool sw
                     }
                     
                     sect_offset += sizeof(struct section_64);
-                    free(section);
                 }
-                free(segment_command_64);
+                
                 break;
             case LC_LOAD_DYLIB:
                 ;
-                struct dylib_command *dylib_command = (struct dylib_command*)macho_load_bytes(offset,sizeof(struct dylib_command));
+                struct dylib_command *dylib_command = (struct dylib_command*)macho_get_bytes(offset);
                 swap(dylib_command,dylib_command,swap);
                 struct dylib dylib = dylib_command->dylib;
                 uint32_t dylib_name_offset = offset + dylib.name.offset;
                 uint32_t name_len = cmdsize - sizeof(dylib_command);
-                char *name = macho_load_bytes(dylib_name_offset,name_len);
+                char *name = macho_get_bytes(dylib_name_offset);
                 printf("LC_LOAD_DYLIB - %s\n",name);
                 printf("\tVers - %u Timestamp - %u\n",dylib.current_version,dylib.timestamp);
                 
-                free(dylib_command);
                 break;
             case LC_SYMTAB:
                 ;
-                struct symtab_command *symtab_command = (struct symtab_command*)macho_load_bytes(offset,sizeof(struct symtab_command));
+                struct symtab_command *symtab_command = (struct symtab_command*)macho_get_bytes(offset);
                 swap(symtab_command,symtab_command,swap);
                 printf("LC_SYMTAB\n");
                 printf("\tSymbol Table is at offset 0x%x (%u) with %u entries \n",symtab_command->symoff,symtab_command->symoff,symtab_command->nsyms);
@@ -633,27 +619,23 @@ void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool sw
                                    symtab_command->nsyms,
                                    symtab_command->stroff,
                                    symtab_command->strsize);
-                free(symtab_command);
                 break;
             case LC_DYSYMTAB:
                 ;
-                struct dysymtab_command *dysymtab_command = (struct dysymtab_command*)macho_load_bytes(offset,sizeof(struct dysymtab_command));
+                struct dysymtab_command *dysymtab_command = (struct dysymtab_command*)macho_get_bytes(offset);
                 swap(dysymtab_command,dysymtab_command,swap);
                 printf("LC_DYSYMTAB\n");
                 printf("\t%u local symbols at index %u\n",dysymtab_command->ilocalsym,dysymtab_command->nlocalsym);
                 printf("\t%u external symbols at index %u\n",dysymtab_command->nextdefsym,dysymtab_command->iextdefsym);
                 printf("\t%u undefined symbols at index %u\n",dysymtab_command->nundefsym,dysymtab_command->iundefsym);
                 printf("\t%u Indirect symbols at offset 0x%x\n",dysymtab_command->nindirectsyms,dysymtab_command->indirectsymoff);
-                
-                free(dysymtab_command);
                 break;
             case LC_MAIN:
                 ;
-                struct entry_point_command *entry_point_command = (struct entry_point_command*)macho_load_bytes(offset,sizeof(struct entry_point_command));
+                struct entry_point_command *entry_point_command = (struct entry_point_command*)macho_get_bytes(offset);
                 swap(entry_point_command,entry_point_command,swap);
                 printf("LC_MAIN\n");
                 printf("\tEntry point at offset 0x%llx\n",entry_point_command->entryoff);
-                free(entry_point_command);
                 break;
                 
             case LC_CODE_SIGNATURE:
@@ -662,11 +644,11 @@ void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool sw
                 // the code signature still points to the code signature and not the LINKEDIT segment
                 // because the code signature is at the end of the linkedit segment
                 // code signatures are going to always be at the end of the file because they can change based on who signs it
-                struct linkedit_data_command *linkedit = (struct linkedit_data_command*)macho_load_bytes(offset,sizeof(struct linkedit_data_command));
+                struct linkedit_data_command *linkedit = (struct linkedit_data_command*)macho_get_bytes(offset);
                 swap(linkedit_data_command,linkedit,swap);
                 uint32_t dataoff = linkedit->dataoff;
                 uint32_t datasize = linkedit->datasize;
-                free(linkedit);
+                
                 printf("LC_CODE_SIGNATURE\n");
                 macho_parse_code_directory(header, headeroff, swap, dataoff, datasize);
                 break;
@@ -675,8 +657,6 @@ void macho_parse_load_commands(mach_header_t header, uint32_t headeroff, bool sw
         }
         
         offset += cmdsize;
-        
-        free(load_cmd);
     }
 }
 
