@@ -506,9 +506,8 @@ void macho_parse_code_directory(mach_header_t header, uint32_t headeroff, bool s
                 
                 char *entitlements;
                 
-                entitlements = malloc(length - sizeof(struct Blob) + 1);
+                entitlements = malloc(length - sizeof(struct Blob));
                 memcpy(entitlements, macho_get_bytes(begin + sizeof(struct Blob)), length - sizeof(struct Blob));
-                entitlements[length - sizeof(struct Blob)] = '\n';
                 
                 blob_raw = macho_get_bytes(begin);
                 blob_hash = macho_compute_hash(specialSlots[ENTITLEMENTS].sha256, blob_raw, length);
